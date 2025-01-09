@@ -5,7 +5,7 @@ output: html_notebook
 
 ```{r}
 # load any extra packages needed here
-# packages loaded concordantly in HelperFunctions.Rmd
+# packages loaded concordantly in HelperFunctions.Rmd aaa
 ```
 
 ```{r}
@@ -527,8 +527,10 @@ temp_beta <- temp_beta[, -1]
 
 check_bounds(temp_beta)
 
+temp_beta <- as.matrix(temp_beta)
 temp_beta <- liftover(temp_beta)
 
+check_bounds(temp_beta)
 
 new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
 colnames(new_dataset) <- colnames(temp_beta)
@@ -541,12 +543,92 @@ running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta
 #write.csv(new_dataset, "pp_datasets/GSE114134_pp.csv")
 
 # GSE124076
+# ------------------
+# CUT FOR NOW
 
 # GSE124366
+# ------------------
+
+file_path <- "original_datasets/oGSE124366_beta.csv"
+file_path2 <- "original_datasets/oGSE124366_md.csv"
+
+temp_beta <- csv_helper(file_path)
+temp_md <- csv_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE124366")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+#write.csv(new_dataset, "pp_datasets/GSE124366_pp.csv")
 
 # GSE137495
+# ------------------
+
+file_path <- "original_datasets/oGSE137495_beta.xlsx"
+file_path2 <- "original_datasets/oGSE137495_md.xlsx"
+
+temp_beta <- xlsx_helper(file_path)
+temp_md <- xlsx_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE137495")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+#write.csv(new_dataset, "pp_datasets/GSE137495_pp.csv")
 
 # GSE138279
+# ------------------
+
+file_path <- "original_datasets/oGSE138279_beta.xlsx"
+file_path2 <- "original_datasets/oGSE138279_md.xlsx"
+
+temp_beta <- xlsx_helper(file_path)
+temp_md <- xlsx_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE138279")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+#write.csv(new_dataset, "pp_datasets/GSE138279_pp.csv")
 ```
 
 Generate age distribution and cpg distribution figures
