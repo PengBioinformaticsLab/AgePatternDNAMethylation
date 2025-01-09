@@ -1,0 +1,107 @@
+---
+title: "Helper Functions"
+output: html_notebook
+---
+
+Read dataset helper functions
+
+```{r, verbose=FALSE}
+library(data.table)
+library(readxl)
+library(dplyr)
+
+xlsx_helper <- function(file_path) {
+  sheet_names <- excel_sheets(file_path)
+  beta <- lapply(sheet_names, function(sheet) {
+    as.data.table(read_excel(file_path, sheet=sheet))
+  }) %>% rbindlist()
+  
+  return(beta)
+}
+
+csv_helper <- function(file_path) {
+  beta <- fread(file_path)
+  return(beta)
+}
+```
+
+Bound dataset helper function
+
+```{r, verbose=FALSE}
+check_bounds <- function(dataset) {
+  temp <- na.omit(dataset)
+  print(all(temp<=1 & temp>=0))
+}
+
+limit_bounds <- function(dataset) {
+  return(pmin(pmax(dataset, 0), 1))
+}
+```
+
+Convert M to beta values helper function
+
+```{r, verbose=FALSE}
+m_to_b <- function(temp) {
+  temp <- apply(temp, c(1, 2), function(m) {
+    2^m/(1+2^m)
+  })
+  return(temp)
+} 
+```
+
+mLiftOver
+
+```{r, verbose=FALSE}
+library(sesame)
+
+#sesameDataCache()
+
+liftover <- function(betas) {
+  return(mLiftOver(betas, "HM450", impute=F))
+}
+
+# temp <- fread(paste0(beta_path, "GSE124076_beta.csv"))
+# temp <- as.data.frame(temp)
+# rownames(temp) <- temp[, 1]
+# temp <- temp[, -1]
+# temp2 <- as.matrix(temp)
+# rownames(temp2) <- rownames(temp)
+# 
+# # Lift over betas
+# betas <- mLiftOver(temp2, "HM450", impute=F)
+```
+
+metadataTracker
+
+```{r, verbose=FALSE}
+age_range <- 0:100
+updateMetadata <- function(updated, md, name) {
+  rounded_ages <- round(as.numeric(md$age))
+  # ensure within bounds
+  rounded_ages <- rounded_ages[rounded_ages <= 100]
+  
+  age_counts <- table(rounded_ages)
+  dataset_column <- rep(0, length(age_range))
+  names(dataset_column) <- paste0("age", age_range)
+  
+  for (age in names(age_counts)) {
+    dataset_column[paste0("age", as.integer(age))] <- age_counts[age]
+  }
+  
+  updated <- cbind(updated, dataset_column)
+  colnames(updated)[ncol(updated)] <- name
+  return(updated)
+}
+```
+
+update valid samples
+- non NA age
+- age < 80 (or other if threshold shifts)
+
+```{r, verbose=FALSE}
+updateValidSamples <- function(valid_samples, md, age_threshold) {
+  temp <- c(valid_samples, temp_md[as.numeric(temp_md$age) <= age_threshold, ]$sample_id)
+  return(temp)
+}
+```
+

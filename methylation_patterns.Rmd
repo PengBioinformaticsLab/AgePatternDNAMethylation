@@ -1,0 +1,2544 @@
+---
+title: "Age-Related Patterns of DNA Methylation Changes"
+output: html_notebook
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+Load all required packages
+
+```{r, echo=FALSE}
+library(ggplot2)
+library(dplyr)
+library(data.table)
+library(factoextra)
+library(pheatmap)
+library(cluster)
+library(corrplot)
+library(tidyr)
+library(tibble)
+library(sparcl)
+library(splines)
+library(tidyverse)
+library(readxl)
+library(tools)
+library(sesame)
+library(ggpubr)
+library(ComplexHeatmap)
+library(DunedinPACE)
+library(clusterProfiler)
+library(org.Hs.eg.db)
+library(methylCIPHER)
+library(effectsize)
+library(GenomicRanges)
+library(karyoploteR)
+library(future)
+library(future.apply)
+library(circlize)
+library(missMethyl)
+library(annotatr)
+library(TxDb.Hsapiens.UCSC.hg38.knownGene)
+library(BRGenomics)
+library(gridBase)
+```
+
+Standardizing parameters for ggplot 
+
+```{r}
+theme_set(theme_pubr())
+MALE_COLOR <- "#ADD8E6"
+FEMALE_COLOR <- "#FFB6C1"
+ALL_COLOR <- "black"
+
+# theme_and_axis_nolegend <- theme(
+#     legend.position = "none",       
+#     text = element_text(face = "bold"), 
+#     axis.title = element_text(face = "bold", size=30), 
+#     axis.text = element_text(face = "bold", size=20),  
+#     plot.title = element_text(face = "bold", hjust=0.5, size=40),  
+#     plot.subtitle = element_text(face = "bold") 
+#   )
+
+theme_and_axis_nolegend <- theme(
+    legend.position = "none",       
+    text = element_text(face = "bold"), 
+    axis.title = element_text(face = "bold"), 
+    axis.text = element_text(face = "bold"),  
+    plot.title = element_text(face = "bold", hjust=0.5),  
+    plot.subtitle = element_text(face = "bold") 
+  )
+
+theme_and_axis_legend <- theme(
+    legend.position = "right",        
+    text = element_text(face = "bold"), 
+    axis.title = element_text(face = "bold"), 
+    axis.text = element_text(face = "bold"),  
+    plot.title = element_text(face = "bold", hjust = 0.5),  
+    plot.subtitle = element_text(face = "bold"),
+    legend.text = element_text(face = "bold"),
+      legend.box.background = element_rect(color = "black"),
+      theme(legend.key.size = unit(10, "cm")), # not too sure how this works
+    legend.title = element_text(size = 12, face = "bold", hjust = 0.5, family="Helvetica")
+)
+```
+
+Age/Gender Metadata Filtering/Visualization (Fig. 1 & Supp Fig. 1)
+
+```{r}
+# List all files in the metadata directory
+metadata_file_paths <- list.files(path="metadata18")
+
+filtered_data <- list()
+
+# Read metadata from all files and extract ID, gender, and age columns
+for (i in 1:length(metadata_file_paths)) {
+  file_ext <- file_ext(metadata_file_paths[i])
+  if (file_ext=="csv") {
+    data <- read.csv(paste0("metadata18/", metadata_file_paths[i]))
+  } else {
+    data <- read_excel(paste0("metadata18/", metadata_file_paths[i]))
+  }
+  filtered_data[[i]] <- data[, c("sample_id", "gender", "age", "type")]
+}
+
+# Combine all
+combined_metadata <- do.call(rbind, filtered_data)
+combined_metadata <- as.data.frame(combined_metadata)
+
+# Filter out samples without age values
+combined_metadata$age <- as.numeric(combined_metadata$age)
+combined_metadata <- combined_metadata[!is.na(combined_metadata$age), ]
+# Filter out samples age > 80
+#combined_metadata <- combined_metadata[combined_metadata$age<=80, ]
+# 4899 samples left
+
+male_sample_ids <- which(combined_metadata$gender=="male" | combined_metadata$gender=="M" | combined_metadata$gender=="Male")
+# 2158 males
+female_sample_ids <- which(combined_metadata$gender=="female" | combined_metadata$gender=="F" | combined_metadata$gender=="Female")
+# 2642 females
+
+NA_gender <- combined_metadata$sample_id[is.na(combined_metadata$gender)]
+# 99 NA gender
+
+all_samples <- combined_metadata$sample_id
+male_samples <- combined_metadata$sample_id[male_sample_ids]
+female_samples <- combined_metadata$sample_id[female_sample_ids]
+
+# Always do colnames %in% specified gender for further analyses
+
+combined_metadata$age <- as.numeric(combined_metadata$age)
+
+# Plot age distribution for all samples
+gghistogram(combined_metadata, x="age", binwidth=1, fill=ALL_COLOR) +
+  scale_x_continuous(limits=c(0, 100), breaks=seq(0, 100, by=5), expand = c(0, 0)) +
+  scale_y_continuous(limits=c(0, 200), expand = c(0, 0)) +
+  labs(x="Age", y="Samples", title="All Age Distribution") +
+  theme_and_axis_legend
+
+#change dims here
+#ggsave("figs/allhistogram.png", plot=last_plot(), dpi=900, width = 10, height=4)
+
+gghistogram(combined_metadata[combined_metadata$sample_id %in% male_samples, ], x="age", binwidth=1, fill=MALE_COLOR) +
+  scale_x_continuous(limits=c(0, 100), breaks=seq(0, 100, by=5), expand = c(0, 0)) +
+  scale_y_continuous(limits=c(0, 200), expand = c(0, 0)) +
+  labs(x="Age", y="Samples", title="Male Age Distribution")  +
+  theme_and_axis_legend
+#ggsave("figs/malehistogram.png", plot=last_plot(), dpi=900, width=10, height=4)
+
+gghistogram(combined_metadata[combined_metadata$sample_id %in% female_samples, ], x="age", binwidth=1, fill=FEMALE_COLOR) +
+  scale_x_continuous(limits=c(0, 100), breaks=seq(0, 100, by=5), expand = c(0, 0)) +
+  scale_y_continuous(limits=c(0, 200), expand = c(0, 0)) +
+  labs(x="Age", y="Samples", title="Female Age Distribution") +
+  theme_and_axis_legend
+#ggsave("figs/femalehistogram.png", plot=last_plot(), dpi=900, width=10, height=4)
+
+# Clean up environment
+rm(data, filtered_data, female_sample_ids, file_ext, i, male_sample_ids, NA_gender, metadata_file_paths)
+```
+
+Double check format
+
+```{r}
+# read all beta files and ensure that they are in the proper format
+beta_files <- list.files(path="betas18")
+# temporary
+beta_files <- beta_files[-1]
+
+for (i in 1:length(beta_files)) {
+  if (file_ext(beta_files[i])=="csv") {
+    beta <- fread(paste0("betas18/", beta_files[i]))
+  } else if (file_ext(beta_files[i])=="xlsx") {
+    file_path <- paste0("betas18/", beta_files[i])
+      sheet_names <- excel_sheets(file_path)
+      beta <- lapply(sheet_names, function(sheet) {
+        as.data.table(read_excel(file_path, sheet = sheet))
+      }) %>% rbindlist()
+  }
+  beta <- as.data.frame(beta)
+  rownames(beta) <- beta[, 1]
+  beta <- beta[, -1]
+  print(beta_files[i])
+  print(file_ext(beta_files[i]))
+  
+  beta <- na.omit(beta)
+  print(all(beta>=0 & beta<=1))
+  
+  #if (!all(beta>=0 & beta<=1)) {
+  #  break
+  #}
+  
+  rm(beta)
+  gc()
+  
+  if (i == length(beta_files)) {
+    print("ALL GOOD")
+  }
+}
+
+# GSE85568 comes out FALSE from this code
+temp <- fread("betas18/GSE85568_beta.csv")
+temp <- as.data.frame(temp)
+rownames(temp) <- temp[, 1]
+temp <- temp[, -1]
+
+filtered <- temp[temp>=1 | temp<=0]
+dim(temp)[1] * dim(temp)[2]
+summary(filtered)
+```
+
+
+Everything below is simple dataset formatting from OneDrive -> workable format (split into chunks)
+
+```{r}
+#Formatting datasets (downloaded directly from OneDrive) 
+#Outputs rows as CpG sites (first row Ages) and columns as samples (last column CpG site identifiers) - GSEXXXXXX_df.csv - done
+formatDatasets <- function() {
+  # Read file paths, assume listed in the same order (alphabetically)
+  metadata_files <- list.files(path="metadata18")
+  beta_files <- list.files(path="betas18") 
+  
+  for (i in 1:length(metadata_files)) {
+    if (i==2 | i ==3) {
+    # Harmonize format (.csv & .xlsx)
+    met_ext <- file_ext(metadata_files[i])
+    beta_ext <- file_ext(beta_files[i])
+    
+    # Extract metadata
+    if (met_ext=="csv") {
+      met <- read.csv(paste0("metadata18/", metadata_files[i]))
+      # Extract dataset name
+      dataset_name <- gsub("_metadata_cleaned.csv", "", metadata_files[i])
+    } else {
+      met <- read_excel(paste0("metadata18/", metadata_files[i]))
+      # Extract dataset name
+      dataset_name <- gsub("_metadata_cleaned.xlsx", "", metadata_files[i])
+    }
+    
+    # Extract beta matrices
+    if (beta_ext=="csv") {
+      beta <- fread(paste0("betas18/", beta_files[i]))
+    } else {
+      # Needs to read multiple sheets then combine
+      file_path <- paste0("betas18/", beta_files[i])
+      sheet_names <- excel_sheets(file_path)
+      beta <- lapply(sheet_names, function(sheet) {
+        as.data.table(read_excel(file_path, sheet = sheet))
+      }) %>% rbindlist()
+    }
+    
+    # Convert to dataframe
+    met <- as.data.frame(met)
+    beta <- as.data.frame(beta)
+    
+    # Set rownames as CpG site identifiers
+    rownames(beta) <- beta[, 1]
+    beta <- beta[, -1]
+    
+    # Extract only GSM IDs & age
+    met <- met[, c("sample_id", "age")]
+    # Transpose
+    met <- as.data.frame(t(met))
+    # Extract column names
+    ids <- met[1, ]
+    met <- met[-1, ]
+    
+    # Convert ages to numeric
+    met <- as.numeric(met)
+    met <- as.data.frame(t(met))
+    colnames(met) <- ids
+    
+    # Combine
+    df <- bind_rows(met, beta)
+    
+    # Write to file
+    fwrite(df, paste0("12_17_combined_datasets/", dataset_name, "_df.csv"), row.names=TRUE)
+    
+    # Logging
+    print(paste0("Done writing: ", dataset_name))
+    
+    # Cleanup
+    if (i%%3==0) {
+      gc()
+    }
+  }
+  }
+}
+
+# Run
+formatDatasets()
+
+#mLiftOver for platform standardization
+# temp <- fread(paste0(beta_path, "GSE124076_beta.csv"))
+# temp <- as.data.frame(temp)
+# rownames(temp) <- temp[, 1]
+# temp <- temp[, -1]
+# temp2 <- as.matrix(temp)
+# rownames(temp2) <- rownames(temp)
+# 
+# # Lift over betas
+# betas <- mLiftOver(temp2, "HM450", impute=F)
+
+#Split datasets into chunks of `sites_per_list` sites x N samples (RAM constraints)
+
+makeChunks <- function(sites_per_list, output_folder) {
+  # List files
+  file_list <- list.files(path=combined_path)
+  
+  # Create split lists
+  # Read desired site list
+  initial_cpg_list <- readRDS("7_21_complete_sites.rds")
+
+  NUMCPGSITE <- length(initial_cpg_list)
+  num_groups <- ceiling(NUMCPGSITE/sites_per_list)
+  
+  # Create splits
+  split_lists <- vector("list", num_groups)
+  for (i in 1:num_groups) {
+    start_index <- (i-1)*sites_per_list + 1
+    end_index <- min(i*sites_per_list, NUMCPGSITE)
+    split_lists[[i]] <- initial_cpg_list[start_index:end_index]
+  }
+  
+  # Loop  through all CpG site splits 
+  for (i in 1:length(split_lists)) {
+    # Initialize temporary dataframe
+    template_sites <- c("age", split_lists[[i]])
+    temp <- data.frame(cpg=template_sites)
+    # Loop through all datasets
+    for (j in 1:length(file_list)) {
+      df <- fread(paste0(combined_path, file_list[j])) 
+      df <- as.data.table(df)
+      # Set identifier as age
+      df[1, 1] <- "age"
+      
+      # Create a template to map to consistent sites
+      template <- data.table(cpg=template_sites)
+      
+      # Merge actual data to template
+      df2 <- merge(template, df, by.x="cpg", by.y="V1", all.x=TRUE, sort=FALSE)
+
+      # Set rownames as CpG sites
+      df2 <- as.data.frame(df2)
+      rownames(df2) <- df2[, 1]
+      df2 <- df2[, -1]
+      
+      # Append to temporary dataframe
+      if (ncol(temp)==0) {
+        temp <- df2
+      } else {
+        temp <- bind_cols(temp, df2)
+      }
+    }
+    # Save split in specified folder
+    fwrite(temp, paste0(output_folder, "/split_", i, ".csv"), row.names=TRUE)
+    
+    # Logging
+    print(paste0("Written split ", i))
+    gc()
+  }
+}
+
+# Run
+makeChunks(50000, "/Users/kchen/OneDrive/Documents/methylation/12_9_splits")
+
+```
+
+Determine unique CpG sites present in all datasets (Fig. 1 & Supp Fig. 1)
+Filter down to sites present in >17 datasets
+
+```{r}
+# Generate table of sites x number of datasets containing the site (485577 x 2)
+overlappingSites <- function() {
+  # Initialize path
+  file_list <- list.files(path=combined_path)
+  # Initialize output list
+  all_sites <- character()
+  
+  for (i in 1:length(file_list)) {
+    # Read files
+    temp <- fread(paste0(combined_path, file_list[i]))
+    temp <- as.data.frame(temp)
+    rownames(temp) <- temp[, 1]
+    temp <- temp[, -1]
+    
+    # Filter out rows with complete NA values
+    temp <- temp[rowSums(is.na(temp)) < ncol(temp), ]
+    
+    # Extract sites list, excluding ages
+    sites <- rownames(temp[-1, ])
+    
+    # Add to results vector
+    all_sites <- c(all_sites, sites)
+    
+    # Logging
+    print(paste("Processing: ", file_list[i]))
+  }
+  
+  # Create table of site frequency across datasets
+  site_counts <- table(all_sites)
+  
+  return(site_counts)
+  
+  # CODE BELOW NOT USED
+  # Extract sites present in > #cutoff datasets
+  #overlap <- names(site_counts)[site_counts >= cutoff]
+  
+  #output <- data.frame(cpg = overlap, stringsAsFactors=FALSE)
+  #return(output)
+}
+
+# Run
+#site_counts <- overlappingSites() # cutoff doesn't matter for this iteration
+#saveRDS(site_counts, "file_save_location")
+
+# Perform filtering and visualization, save list of CpG sites proceed to further analyses
+
+site_counts <- readRDS("7_21_site_counts.csv")
+site_counts <- as.data.frame(site_counts)
+clock_sites <- read.csv("7_3_overlap.csv")[, 2]
+# Subset to clock CpGs
+subset_site_counts <- site_counts[site_counts[, 1] %in% clock_sites, ]
+
+thresholds <- seq(22, 1, by = -1)
+
+# visualize using bar chart the number of sites present in at least 22 datasets, 21 datasets, 20 datasets
+to_plot <- sapply(thresholds, function(t) sum(site_counts[, 2]>=t))
+to_plot <- data.frame(`CpG Count` = to_plot, Threshold = thresholds)
+
+# Plot
+ggbarplot(to_plot, x="Threshold", y="CpG.Count", fill="#4682B4", 
+          title="All 450K CpGs Present Across Datasets") +
+  theme_and_axis_nolegend
+#ggsave("figs/cpgpresencebarplot.png", plot=last_plot(), dpi=900, width=10, height=6)
+
+all_cutoff <- 17
+temp_sites <- site_counts[site_counts[, 2]>=all_cutoff, 1]
+temp_sites <- as.character(temp_sites)
+#saveRDS(temp_sites, "7_23_all_sites.rds")
+
+#485577 sites total in 450K array
+
+to_plot2 <- sapply(thresholds, function(t) sum(subset_site_counts[, 2] >= t))
+to_plot2 <- data.frame(`CpG Count` = to_plot2, Threshold = thresholds)
+
+# Plot
+ggbarplot(to_plot2, x="Threshold", y="CpG.Count", fill="#4682B4",
+          title="Clock CpGs Present Across Datasets") +
+  theme_and_axis_nolegend
+#ggsave("figs/clockcpgpresencebarplot.png", plot=last_plot(), dpi=900, width=10, height=6)
+
+
+clock_cutoff <- 17
+temp_sites2 <- subset_site_counts[subset_site_counts[, 2]>=clock_cutoff, 1]
+temp_sites2 <- as.character(temp_sites2)
+#saveRDS(temp_sites2, "7_23_clock_sites.rds")
+
+#1868 sites total in clocks
+# 1451 Clock CpG sites present in 17/22 datasets
+```
+
+Calculate EAA
+
+```{r}
+
+# Reformat splits from (50000 sites x all samples) to (all sites x 1000 samples) to ensure that samples have all available sites for EAA calculation
+# file_list <- list.files(path="combined_split_complete")
+# 
+# all_data <- data.table()
+# chunk_size <- 1000
+# temp <- fread(paste0("combined_split_complete/split_1.csv"), nrows = 1)
+# total_columns <- ncol(temp) - 1  # Adjust for removed first column
+# num_chunks <- ceiling(total_columns / chunk_size)
+# for (chunk_index in 1:num_chunks) {
+#   chunk_data <- data.table()
+#   
+#   for (i in 1:length(file_list)) {
+#     # Read the current file
+#     temp <- fread(paste0("combined_split_complete/split_", i, ".csv"))
+# 
+#     # Remove the first row and column
+#     temp <- temp[-1, -1]
+# 
+#     # Determine the start and end columns for the current chunk
+#     start_col <- (chunk_index - 1) * chunk_size + 1
+#     end_col <- min(chunk_index * chunk_size, ncol(temp))
+#     
+#     # If the chunk is within the range of the current file, process it
+#     if (start_col <= ncol(temp)) {
+#       # Extract the columns for the current chunk
+#       temp_chunk <- temp[, start_col:end_col, with = FALSE]
+#       
+#       # Combine the current chunk with previous file chunks
+#       chunk_data <- rbindlist(list(chunk_data, temp_chunk), use.names = TRUE, fill = TRUE)
+#     }
+#   }
+#   
+#   # Save the combined chunk data to a temporary file
+#   fwrite(chunk_data, paste0("temp_chunk_", chunk_index, ".csv"))
+# }
+
+#availableClock()
+#[1] "HannumG2013"    "HorvathS2013"   "LevineM2018"    "ZhangQ2019"     "ShirebyG2020"   "YangZ2016"      "ZhangY2017"     "LuA2019"       
+# [9] "HorvathS2018"   "DunedinPACE"    "McEwenL2019"    "CBL_specific"   "PCGrimAge"      "PCHorvathS2013" "PCHannumG2013"  "PCHorvathS2018"
+#[17] "PCPhenoAge"     "CBL_common"     "Cortex_common"  "epiTOC2"        "BernabeuE2023c" "LuA2023p1"      "LuA2023p2"      "LuA2023p3"   
+
+combined_metadata <- combined_metadata[,c("sample_id", "age", "gender")]
+colnames(combined_metadata) <- c("Sample", "Age", "Gender")
+# Split into cohorts (different clocks applied)
+firstcohort <- combined_metadata[combined_metadata$Age<=20, ]
+secondcohort <- combined_metadata[combined_metadata$Age>20, ]
+firstsamples <- firstcohort$Sample
+secondsamples <- secondcohort$Sample
+
+
+temp <- fread(paste0("temp_chunk_1.csv"))
+temp <- as.data.frame(temp)
+row_names <- temp[, 1]
+
+# clockOptions()
+results <- data.frame()
+for (i in 1:6) {
+  temp <- fread(paste0("temp_chunk_", i, ".csv"))
+  temp <- as.data.frame(temp)
+  rownames(temp) <- row_names
+  temp$cpg <- NULL
+  
+  
+  # Calculate using PedBE for samples 0-20
+  young <- temp[colnames(temp) %in% firstsamples]
+  young <- as.matrix(t(young))
+  info <- firstcohort[firstcohort$Sample %in% rownames(young), ]
+  rownames(info) <- info[, 1]
+  info <- info[, -1]
+  EAA <- calcPEDBE(young, info, imputation=T)
+  colnames(EAA) <- c("Age", "Gender", "CalcAge")
+  
+  if (!ncol(results)) {
+    results <- EAA
+  } else {
+    results <- rbind(results, EAA)
+  }
+    
+  # Calculate using Horvath for samples 20-80
+  old <- temp[colnames(temp) %in% secondsamples]
+  old <- as.matrix(t(old))
+  info2 <- secondcohort[secondcohort$Sample %in% rownames(old), ]
+  rownames(info2) <- info2[, 1]
+  info2 <- info2[, -1]
+  EAA2 <- calcHorvath1(old, info2, imputation=T)
+  colnames(EAA2) <- c("Age", "Gender", "CalcAge")
+
+  
+  results <- rbind(results, EAA2)
+}
+
+#saveRDS(results, "9_3_clock_calculations.rds")
+```
+
+EAA Visualization (Fig. 4C, 4D)
+
+```{r}
+EAA_results <- readRDS("9_3_clock_calculations.rds")
+EAA_results <- EAA_results[!is.na(EAA_results$Gender),]
+EAA_results <- EAA_results %>%
+  mutate(Gender = case_when(
+    Gender %in% c("female", "F", "Female") ~ "Female",
+    Gender %in% c("male", "M", "Male") ~ "Male",
+    TRUE ~ NA_character_  # Handle any unexpected values or NAs
+  ))
+
+EAA_results$EAA_difference <- EAA_results$CalcAge - EAA_results$Age
+
+model <- lm(CalcAge ~ Age, data = EAA_results)
+EAA_results$EAA_residuals <- resid(model)
+#filter to be consistent
+EAA_results <- EAA_results[EAA_results$Age<=80, ]
+
+# Plot EAAs
+plot1 <- ggscatter(EAA_results, "Age", "EAA_residuals", color="Gender", shape="Gender") +
+  labs(
+    title = "EAA by Gender",
+    x = "Chronological Age",
+    y = "EAA Residuals",
+    color = "Gender",
+    shape = "Gender"
+  ) +
+  scale_color_manual(values=c("Male" = MALE_COLOR, "Female" = FEMALE_COLOR)) +
+  theme_and_axis_legend
+#ggsave("figs/EAA_by_gender.png", plot=last_plot(), dpi=300)
+
+# Define overlapping age windows
+age_windows <- data.frame(
+  window_start = seq(0, 60, by = 5),  # Start from 0, 5, 10, ..., 60
+  window_end = seq(20, 80, by = 5)    # End at 20, 25, 30, ..., 80
+)
+
+EAA_results_long <- do.call(rbind, lapply(1:nrow(age_windows), function(i) {
+  window <- age_windows[i, ]
+  
+  # Filter and mutate the window labels correctly
+  EAA_subset <- EAA_results %>%
+    filter(Age >= window$window_start & Age <= window$window_end) %>%
+    mutate(
+      window = paste0("[", window$window_start, ", ", window$window_end, "]")  # Inclusive for all windows
+    )
+  
+  return(EAA_subset)
+}))
+
+# Calculate sample sizes for each gender in each age window
+sample_sizes <- EAA_results_long %>%
+  group_by(window, Gender) %>%
+  summarise(sample_size = n(), .groups = 'drop') %>%
+  ungroup()
+
+#8637
+
+# Create a new data frame with combined labels for x-axis
+sample_sizes_wide <- sample_sizes %>%
+  pivot_wider(names_from = Gender, values_from = sample_size, values_fill = 0)  # Fill missing values with 0
+
+# Create a new data frame with combined labels for x-axis
+window_labels <- sample_sizes_wide %>%
+  mutate(
+    label = paste0(
+      window, "\n",
+      "(", Male, ", ", Female, ")"
+    )
+  ) %>%
+  dplyr::select(window, label) 
+
+# Reorder correctly
+window_labels <- window_labels[c(1, 10, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13),]
+
+# Ensure unique labels for each window
+EAA_results_long <- EAA_results_long %>%
+  left_join(window_labels, by = "window") %>%
+  mutate(label = factor(label, levels = unique(window_labels$label))) 
+
+
+# Cohen's D compares difference in means, relative to pooled SD
+cd_results <- list()
+for (i in unique(EAA_results_long$window)) {
+  temp_male <- EAA_results_long[EAA_results_long$window==i & EAA_results_long$Gender=="Male", ]
+  temp_female <- EAA_results_long[EAA_results_long$window==i & EAA_results_long$Gender=="Female", ]
+  
+  mean_male <- mean(temp_male$EAA_residuals, na.rm = TRUE)
+  mean_female <- mean(temp_female$EAA_residuals, na.rm = TRUE)
+  
+  # Print the means for sanity check
+  cat("Window:", i, "\n")
+  cat("Mean (Male):", mean_male, "\n")
+  cat("Mean (Female):", mean_female, "\n\n")
+  
+  res <- cohens_d(temp_male$EAA_residuals, temp_female$EAA_residuals)
+  cd_results[[as.character(i)]] <- res$Cohens_d  # Extract the specific value for Cohen's d
+
+}
+
+cd_results_df <- data.frame(
+  window = names(cd_results),  # Use the window names as the first column
+  d = unlist(cd_results),      # Unlist the Cohen's d values to create a numeric column
+  stringsAsFactors = FALSE     # Prevent factors, if not needed
+)
+
+# Merge with window_labels to get the proper labels for the x-axis
+cd_results_df <- cd_results_df %>%
+  left_join(window_labels, by = c("window" = "window"))
+
+# Reorder
+EAA_results_long$Gender <- factor(EAA_results_long$Gender, levels = c("Male", "Female"))
+
+
+# Plot with annotations
+plot2 <- ggplot(EAA_results_long, aes(x = label, y = EAA_residuals, fill = Gender)) +
+  geom_boxplot(position = position_dodge(width = 0.75)) +  # Position male and female side-by-side
+  scale_fill_manual(values = c("Female" = FEMALE_COLOR, "Male" = MALE_COLOR)) +  # Custom colors for clarity
+  labs(
+    title = " ",
+    x = "\nAge Window\nSample Size (Male, Female)",
+    y = "EAA",
+    fill = "Gender"
+  ) +
+  theme_and_axis_legend + 
+  theme(axis.text.x = element_text(size=6)) + #override x axis label font size
+  # Customize x-axis text to be bold
+  
+ #FIX BELOW
+  geom_text(
+    data = cd_results_df, 
+    aes(x = label, y = max(EAA_results_long$EAA_residuals, na.rm = TRUE) + 6, 
+        label = round(d, 2)),  # Format Cohen's d to 2 decimal places
+    size = 4, 
+    fontface = "bold",
+    inherit.aes = FALSE  # Prevent inheriting unwanted aesthetics
+  )
+
+plot_list <- list(plot1, plot2)
+temp <- ggarrange(plotlist = plot_list, ncol=2, nrow=1, common.legend = TRUE)
+ggsave("figs/EAA_arrange_visualized.png", plot=last_plot(), width=12, height=5, dpi=300)
+print(temp)
+#ggsave("figs/EAA_by_gender_window.png", plot=last_plot(), width = 10, height = 6, units=c("in"), dpi=900)
+
+#rm(age_windows, cd_results, cd_results_df, EAA_results, EAA_results_long, model, sample_sizes, sample_sizes_widewindow_labels)
+
+```
+
+Reduce complete data to beta value average and standard deviation matrices
+
+```{r}
+# Helper function to create empty matrix
+createEmptyMatrix <- function(NUMCPGSITE, cpg_list, start_age, end_age) {
+  B <- matrix(NA, nrow=NUMCPGSITE, ncol = end_age - start_age + 1)
+  age_range <- start_age:end_age
+  rownames(B) <- cpg_list
+  column_names <- character(end_age - start_age + 1)
+  for (i in 1:(end_age - start_age + 1)) {
+    column_names[i] <- paste0("age_", i-1+start_age)
+  }
+  colnames(B) <- column_names
+  return(B)
+}
+
+# Generate overall matrix for downstream analysis
+# - gender_state: 1 = no stratification, 2 = male, 3 = female
+# - clock_state: TRUE: use clock CpGs, FALSE: use All CpGs
+# - avg_state: TRUE: generate matrix of average betas, FALSE: generate matrix of standard deviations
+generateMatrix <- function(gender_state=1, output_file_path1, output_file_path2) {
+  folder <- "/Users/kchen/OneDrive/Documents/methylation/combined_split_complete"
+  # Initialize input path
+  list_files <- list.files(path=folder)
+  # Extract number of splits
+  num_files <- length(list_files)
+  
+  # Read all CpGs
+  initial_cpg_list <- readRDS("7_21_complete_sites.rds")
+
+  NUMCPGSITE <- length(initial_cpg_list)
+  
+  # Create empty matrices
+  B <- createEmptyMatrix(NUMCPGSITE, initial_cpg_list, 0, 100)
+  S <- createEmptyMatrix(NUMCPGSITE, initial_cpg_list, 0, 100)
+
+  # Loop through all splits
+  for (i in 1:num_files) {
+    # Read split from folder
+    temp <- fread(paste0(folder, "/", list_files[i]))
+    # Format:
+    # - First two columns are identical: "V1", "cpg"
+    #  - contain "age" then CpG identifiers
+    # - Column names are GSM IDs
+    # - First Row contains ages
+    
+    # Format split
+    temp <- as.data.frame(temp)
+    # Set rownames
+    rownames(temp) <- temp[, 1]
+    temp <- temp[, -c(1, 2)]
+    # Round non-integer ages
+    temp["age", ] <- as.numeric(temp["age", ])
+    temp["age", ] <- round(temp["age", ])
+  
+    # Filter for desired samples (gender-stratified)
+    if (gender_state==1) {
+      temp <- temp[, colnames(temp) %in% all_samples]
+    } else if (gender_state==2) {
+      temp <- temp[, colnames(temp) %in% male_samples]
+    } else if (gender_state==3) {
+      temp <- temp[, colnames(temp) %in% female_samples]
+    } else {
+      print("Error")
+      break
+    }
+    
+    # Save identifiers to examine
+    ident <- rownames(temp[-1, ])
+    #NUMCPGSITE3 <- length(ident)
+    
+    for (j in 0:100) {
+      # Select samples at age j
+      des_cols <- which(temp["age", ]==j)
+      
+      # Check if there are samples at age j
+      if (length(des_cols) != 0) {
+        temp2 <- temp[, des_cols]
+        
+        if (is.null(nrow(temp2)) || nrow(temp2) < 2) {
+          print(paste0("Skipping age ", j, " in Split ", i, " due to insufficient data"))
+          next
+        }
+        
+        # Remove Age Row
+        temp2 <- temp2[-1, ]
+        
+        # If clock_state==TRUE, only select clock sites
+        # Could be 0 rows
+        #if (clock_state) {
+        #  des_rows <- which(rownames(temp2) %in% initial_clock_list)
+        #  temp2 <- temp2[des_rows, ]
+        #  # Reinitialize targeted cpgs
+        #  ident <- rownames(temp2)
+        #}
+        
+        setDT(temp2)
+        
+        # Generate averages and standard deviations at age j for vector of specified CpG sites
+        average_vector <- temp2[, .(final = rowMeans(.SD, na.rm=TRUE)), by=.I]
+        average_vector <- as.data.frame(average_vector)
+        sd_vector <- temp2[, .(final = apply(.SD, 1, sd, na.rm=TRUE)), by=.I]
+        sd_vector <- as.data.frame(sd_vector)
+        
+        # Assign back to matrices
+        if (ncol(average_vector) > 0 & nrow(average_vector) > 0) {
+          B[ident, paste0("age_", j)] <- average_vector$final
+          S[ident, paste0("age_", j)] <- sd_vector$final
+        }
+            
+        # Logging
+        print(paste0("Processing age ", j, ", Split ", i))
+      } else {
+        print(paste0("No samples at age ", j))
+      }
+    }
+    gc()
+  }
+  print("Writing files now")
+  
+  # Convert to dataframes to preserve rownames
+  B <- as.data.frame(B)
+  S <- as.data.frame(S)
+  fwrite(B, output_file_path1, row.names=TRUE)
+  fwrite(S, output_file_path2, row.names=TRUE)
+}
+
+generateMatrix(gender_state=1, "7_21_all_matrix_avg.csv", "7_21_all_matrix_sd.csv")
+generateMatrix(gender_state=2, "7_22_male_matrix_avg.csv", "7_22_male_matrix_sd.csv")
+generateMatrix(gender_state=3, "7_22_female_matrix_avg.csv", "7_22_female_matrix_sd.csv")
+#generateMatrix(gender_state=1, clock_state = TRUE, "7_19_clock_matrix_avg.csv", "7_19_clock_matrix_sd.csv")
+```
+
+Check NA percentages in matrices
+
+```{r}
+# B <- fread("7_21_all_matrix_avg.csv")
+# B <- as.data.frame(B)
+# rownames(B) <- B[, 1]
+# B <- B[, -1]
+# B <- B[, -c(82:101)]
+# 
+# sub_B <- B[rownames(B) %in% temp_sites, ]
+# print(paste0("Percent NA: ", sum(is.na(sub_B)) / (dim(sub_B)[1] * dim(sub_B)[2]) * 100))
+# 
+# clock_B <- B[rownames(B) %in% temp_sites2, ]
+# print(paste0("Percent NA Clock: ", sum(is.na(clock_B)) / (dim(clock_B)[1] * dim(clock_B)[2]) * 100))
+# 
+# B <- fread("7_22_male_matrix_avg.csv")
+# B <- as.data.frame(B)
+# rownames(B) <- B[, 1]
+# B <- B[, -1]
+# B <- B[, -c(82:101)]
+# 
+# sub_B <- B[rownames(B) %in% temp_sites, ]
+# print(paste0("Percent NA B Male: ", sum(is.na(sub_B)) / (dim(sub_B)[1] * dim(sub_B)[2]) * 100))
+# 
+# clock_B <- B[rownames(B) %in% temp_sites2, ]
+# print(paste0("Percent NA B Male Clock: ", sum(is.na(clock_B)) / (dim(clock_B)[1] * dim(clock_B)[2]) * 100))
+# 
+# B <- fread("7_22_female_matrix_avg.csv")
+# B <- as.data.frame(B)
+# rownames(B) <- B[, 1]
+# B <- B[, -1]
+# B <- B[, -c(82:101)]
+# 
+# sub_B <- B[rownames(B) %in% temp_sites, ]
+# print(paste0("Percent NA B Female: ", sum(is.na(sub_B)) / (dim(sub_B)[1] * dim(sub_B)[2]) * 100))
+# 
+# clock_B <- B[rownames(B) %in% temp_sites2, ]
+# print(paste0("Percent NA B Female Clock: ", sum(is.na(clock_B)) / (dim(clock_B)[1] * dim(clock_B)[2]) * 100))
+```
+
+Generate filter results (all CpGs)
+
+```{r}
+# From generated CpG site by Age matrices for average beta and sd beta, generate results dataframe relevant to filter
+extractResults <- function(avg_matrix_path, sd_matrix_path) {
+  # Read matrices
+  B <- fread(avg_matrix_path)
+  S <- fread(sd_matrix_path)
+  
+  # Format matrices
+  B <- as.data.frame(B)
+  rownames(B) <- B[, 1]
+  B <- B[, -1]
+  S <- as.data.frame(S)
+  rownames(S) <- S[, 1]
+  S <- S[, -1]
+  
+  # Initialize results output
+  results_full <- data.frame()
+  # Determine the number of cores for parallel processing
+  num_cores <- min(detectCores() - 1, 8)  # Use a maximum of 4 cores or one less than available
+
+  for (start_age in seq(0, 60, by=5)) {
+    end_age <- start_age + 20
+    
+    # Logging
+    print(paste0("Processing start age: ", start_age))
+    
+    # Extract relevant columns
+    des_cols <- which(as.numeric(gsub("age_", "", colnames(B))) >= start_age & 
+                        as.numeric(gsub("age_", "", colnames(B))) <= end_age)
+    
+    # Subset initial matrices
+    sub_B <- B[, des_cols]
+    sub_S <- S[, des_cols]
+    
+    age_sequence <- as.numeric(gsub("age_", "", colnames(sub_B)))
+
+    # Calculate correlations
+    corr_results <- apply(sub_B, 1, function(x) cor(x, age_sequence, use = "complete.obs"))
+
+    # Calculate absolute beta change
+    calc_abs_change <- function(x, age_seq) {
+      # Fit linear model
+      fit <- lm(x ~ age_seq)
+      
+      # Predict values at starting and ending age points
+      start_pred <- predict(fit, newdata = data.frame(age_seq = start_age))
+      end_pred <- predict(fit, newdata = data.frame(age_seq = end_age))
+      
+      # Calculate absolute beta change
+      abs_change <- abs(end_pred - start_pred)
+      
+      return(abs_change)
+    }
+    
+    # Apply the function to each row in sub_B
+    abs_change_results <- apply(sub_B, 1, function(x) calc_abs_change(x, age_sequence))    
+    # Calculate num variance
+    # Set threshold
+    adj_avg <- 0.5 * sqrt(sub_B * (1 - sub_B))
+
+    # Change to matrix    
+    sub_S_matrix <- as.matrix(sub_S)
+
+    # Count how many age points are above threshold
+    is_above_threshold <- !is.na(adj_avg) & !is.na(sub_S_matrix) & (sub_S_matrix > adj_avg)
+    sd_results <- rowSums(is_above_threshold, na.rm = TRUE)
+    sd_results <- as.data.frame(sd_results)
+
+    # Combine results
+    temp_results <- data.frame(corr_results, abs_change_results, sd_results)
+    
+    # Assign appropriate column names
+    name_cols <- c(paste0(start_age, "-", end_age, "-corr_res"),
+                   paste0(start_age, "-", end_age, "-abs_res"),
+                   paste0(start_age, "-", end_age, "-sd_res0.5"))
+    colnames(temp_results) <- name_cols
+    rownames(temp_results) <- rownames(sub_B)
+    
+    # Add to main results
+    if (ncol(results_full) == 0) {
+      results_full <- temp_results
+    } else {
+      results_full <- cbind(results_full, temp_results)
+    }
+
+    # Calculate slope and p-value for each site in parallel
+  }
+  
+  return(results_full)
+}
+
+# Example usage:
+# results <- extractResults("path/to/avg_matrix.csv", "path/to/sd_matrix.csv")
+results1 <- extractResults("7_21_all_matrix_avg.csv", "7_21_all_matrix_sd.csv")
+#saveRDS(results1, "8_7_all_results.rds")
+results2 <- extractResults("7_22_male_matrix_avg.csv", "7_22_male_matrix_sd.csv")
+#saveRDS(results2, "8_7_male_results.rds")
+results3 <- extractResults("7_22_female_matrix_avg.csv", "7_22_female_matrix_sd.csv")
+#saveRDS(results3, "8_7_female_results.rds")
+```
+
+Check thresholds in filter results and filter down sites
+Visualization and printing of aaCpGs (Table 1 & Fig. 2B & Fig. 2C)
+
+```{r}
+# Format: list with identifier as age window, filled with list of CpG sites
+convert_to_list_format <- function(significant_counts) {
+  result_list <- list()
+  
+  for (i in 1:nrow(significant_counts)) {
+    window_name <- significant_counts$Age_Window[i]
+    cpg_sites <- significant_counts$CpG_Sites[[i]]
+    result_list[[window_name]] <- cpg_sites
+  }
+  
+  return(result_list)
+}
+
+# Apply final filter 
+# If <100 sites, apply secondary filter
+extract_sites <- function(results, gender_state, cor_threshold, abs_threshold, sd_threshold) {
+  significant_counts <- data.frame(age_window = character(), count = integer(), sites = I(list()), stringsAsFactors=FALSE)
+  
+  # Extract values from filter results
+  for (i in seq(1, ncol(results), by=3)) {
+    filtered_in_window <- apply(results[, c(i, i+1, i+2)], 1, function(row) {
+      corr_res <- row[1]
+      abs_res <- row[2]
+      sd_res <- row[3]
+      !is.na(corr_res) && !is.na(abs_res) && !is.na(sd_res) &&
+      abs(corr_res) > cor_threshold && abs_res > abs_threshold && sd_res < sd_threshold
+    })
+    cpg_sites <- rownames(results)[filtered_in_window]
+    
+    if (length(cpg_sites) < 100) {
+      temp <- results[, c(i, i+1, i+2)]
+      # QC Standard deviation filtering
+      temp <- temp[temp[, i %% 3 + 2] < sd_threshold, ]
+      # top 1000 by correlation coefficient
+      temp <- temp[order(-abs(temp[, i %% 3 ])), ]
+      temp <- temp[1:1000, ]
+      # top 100 by absolute beta change
+      temp <- temp[order(-temp[, i %% 3 + 1]), ]
+      temp <- temp[1:100, ]
+      
+      cpg_sites <- rownames(temp)
+    }
+    window_name <- gsub("-corr_res", "", colnames(results)[i])
+     significant_counts <- rbind(significant_counts, data.frame(
+       Age_Window = window_name, 
+       Count = length(cpg_sites), 
+       Gender = ifelse(gender_state == 1, "All", ifelse(gender_state == 2, "Male", "Female")),
+       CpG_Sites = I(list(cpg_sites))
+     ))
+  }
+  return(significant_counts)
+}
+
+# Read results for all sites and filter for sites in 17/22 datasets
+results1 <- readRDS("8_7_all_results.rds")
+all_sites <- readRDS("7_23_all_sites.rds")
+results1 <- results1[rownames(results1) %in% all_sites, ]
+results2 <- readRDS("8_7_male_results.rds")
+results2 <- results2[rownames(results2) %in% all_sites, ]
+results3 <- readRDS("8_7_female_results.rds")
+results3 <- results3[rownames(results3) %in% all_sites, ]
+
+sig_counts1 <- extract_sites(results1, 1, 0.6, 0.25, 2)
+sig_counts2 <- extract_sites(results2, 2, 0.6, 0.25, 2)
+sig_counts3 <- extract_sites(results3, 3, 0.6, 0.25, 2)
+
+list1 <- convert_to_list_format(sig_counts1)
+list2 <- convert_to_list_format(sig_counts2)
+list3 <- convert_to_list_format(sig_counts3)
+
+# Get Overlaps between male and female
+for (i in 1:length(list2)) {
+  print(paste0("Window: ", names(list2)[i]))
+  temp <- intersect( list2[[i]], list3[[i]] )
+  print(paste0("Overlap: ", length( temp )))
+  if (i==1) {
+    mylist <- temp
+  } else {
+    mylist <- append(mylist, temp)
+  }
+  print(length(unique(mylist)))
+}
+
+
+# Visualize filter results -> Male correlation vs female correlations for respective selected aaCpGs
+window_columns <- grep("corr_res", colnames(results1), value = TRUE)
+plot_list <- list()
+for (window in window_columns) {
+  un <- union(list2[[gsub("-corr_res", "", window)]], list3[[gsub("-corr_res", "", window)]]) 
+  overlap <- intersect(list2[[gsub("-corr_res", "", window)]], list3[[gsub("-corr_res", "", window)]])
+  list2_unique <- setdiff(list2[[gsub("-corr_res", "", window)]], list3[[gsub("-corr_res", "", window)]]) 
+  list3_unique <- setdiff(list3[[gsub("-corr_res", "", window)]], list2[[gsub("-corr_res", "", window)]])
+  
+  temp2 <- results2[un, c(window), drop=FALSE]
+  temp3 <- results3[un, c(window), drop=FALSE]
+  
+  to_plot <- cbind(temp2, temp3)
+  colnames(to_plot) <- c("male", "female")
+  to_plot <- as.data.frame(to_plot)
+  
+  to_plot$Group <- ifelse(rownames(to_plot) %in% overlap, "Overlap",
+                          ifelse(rownames(to_plot) %in% list2_unique, "Male Unique", "Female Unique"))
+  
+  # Reorder factor levels for consistent coloring
+  to_plot$Group <- factor(to_plot$Group, levels = c("Male Unique", "Overlap", "Female Unique"))
+  
+  # Create the scatter plot for the current window
+  p <- ggscatter(to_plot, "male", "female", size=0.1, color="Group", alpha = 0.5) +
+    geom_abline(slope = 1, intercept = 0, color="red") +  # Add reference line
+    labs(
+    title = paste("[", gsub("-corr_res", "", window), "]"),
+      x = "Male",
+      y = "Female"
+    ) +
+    theme_and_axis_nolegend +
+    ylim(-1, 1) +
+    xlim(-1, 1) +
+    scale_color_manual(values = c("Male Unique" = "#ADD8E6", "Overlap" = "black", "Female Unique" = "#FFB6C1")) +
+    theme(
+    panel.border = element_rect(color = "black", fill = NA, size = 1), # Adds all four borders
+    axis.line = element_blank()  # Remove default axis lines
+    )
+    #ggsave(paste0("figs/scatter_plot_", gsub("-corr_res", "", window), ".png"), width = 7.29, height=4.51, units="in", dpi=900)
+  print(p)
+  plot_list[[length(plot_list) + 1]] <- p
+}
+
+arrangedPlots <- ggarrange(plotlist = plot_list, ncol=4, nrow=4, common.legend = TRUE)
+ggsave("figs/all_filter_visualized.png", plot=last_plot(), width=15, height=15, dpi=300)
+#print(arrangedPlots)
+
+#saveRDS(list1, "8_19_all_sites_list.rds")
+#saveRDS(list2, "8_19_male_sites_list.rds")
+#saveRDS(list3, "8_19_female_sites_list.rds")
+
+# Print lists in console
+all_cpg <- character()
+for (i in 1:length(list1)) {
+  print(paste0("All, Age window: ", names(list1)[i], " # CpGs: ", length(list1[[i]])))
+  all_cpg <- append(all_cpg, list1[[i]])
+}
+all_cpg <- unique(all_cpg)
+print(length(all_cpg))
+
+male_cpg <- character()
+for (i in 1:length(list2)) {
+  print(paste0("Male, Age window: ", names(list2)[i], " # CpGs: ", length(list2[[i]])))
+  male_cpg <- append(male_cpg, list2[[i]])
+}
+male_cpg <- unique(male_cpg)
+print(length(male_cpg))
+
+female_cpg <- character()
+for (i in 1:length(list3)) {
+  print(paste0("Female, Age window: ", names(list3)[i], " # CpGs: ", length(list3[[i]])))
+  female_cpg <- append(female_cpg, list3[[i]])
+}
+female_cpg <- unique(female_cpg)
+print(length(female_cpg))
+
+#saveRDS(all_cpg, "all_sig_sites.rds")
+#saveRDS(male_cpg, "male_sig_sites.rds")
+#saveRDS(female_cpg, "female_sig_sites.rds")
+
+# Save aaCpG lists
+all_cpg <- readRDS("all_sig_sites.rds")
+male_cpg <- readRDS("male_sig_sites.rds")
+female_cpg <- readRDS("female_sig_sites.rds")
+
+list_for_upset <- list(
+  All = all_cpg,
+  Male = male_cpg,
+  Female = female_cpg
+)
+ 
+#m1 <- make_comb_mat(list_for_upset, mode="intersect")
+#UpSet(m1, set_order = rownames(m1))
+#dev.copy(png, "allmalefemaleselectupset.png", width=900)
+#dev.off()
+
+m1 <- make_comb_mat(list1, mode="distinct")
+png("figs/allwindowsupset.png", width = 6000, height = 1500, res=300)
+# UpSet with aesthetics
+UpSet(m1, 
+      pt_size = unit(2, "mm"), 
+      lwd = 1, 
+      comb_col = c("red", "orange", "green", "blue", "purple", "black")[comb_degree(m1)],
+        set_order = rownames(m1),
+      top_annotation = upset_top_annotation(m1, height = unit(4, "cm")),
+      right_annotation = upset_right_annotation(m1, width = unit(1.5, "cm")),
+      width = unit(12, "cm"),
+      height = unit(5, "cm"))
+dev.off()
+
+m1 <- make_comb_mat(list2, mode="distinct")
+png("figs/malewindowsupset.png", width = 6000, height = 1500, res=300)
+# UpSet with aesthetics
+UpSet(m1, 
+      pt_size = unit(2, "mm"), 
+      lwd = 1, 
+      comb_col = c("red", "orange", "green", "blue", "purple", "black")[comb_degree(m1)],
+        set_order = rownames(m1),
+      top_annotation = upset_top_annotation(m1, height = unit(4, "cm")),
+      right_annotation = upset_right_annotation(m1, width = unit(1.5, "cm")),
+      width = unit(12, "cm"),
+      height = unit(5, "cm"))
+dev.off()
+
+m1 <- make_comb_mat(list3, mode="distinct")
+png("figs/femalewindowsupset.png", width = 6000, height = 1500, res=300)
+# UpSet with aesthetics
+UpSet(m1, 
+      pt_size = unit(2, "mm"), 
+      lwd = 1, 
+      comb_col = c("red", "orange", "green", "blue", "purple", "black")[comb_degree(m1)],
+        set_order = rownames(m1),
+      top_annotation = upset_top_annotation(m1, height = unit(4, "cm")),
+      right_annotation = upset_right_annotation(m1, width = unit(1.5, "cm")),
+      width = unit(12, "cm"),
+      height = unit(5, "cm"))
+dev.off()
+```
+
+Extra filter visualization (correlation coefficient vs absolute beta change for every age windows & all, male, female)
+(Supp Fig. ??)
+
+```{r}
+# HASNT BEEN RUN IN A WHILE, NEED TO REWORK WITH GGARRANGE AND MATCH AESTHETICS
+visualizeFilterResults <- function(results, list_type, gender_state) {
+  
+  all_sites <- readRDS("7_23_all_sites.rds")
+  results <- results[rownames(results) %in% all_sites, ]
+  
+  # Extract and stratify results
+  cor_res <- results[, seq(1, ncol(results), by=3)]
+  abs_res <- results[, seq(2, ncol(results), by=3)]
+  sd_res <- results[, seq(3, ncol(results), by=3)]
+  
+  # Flip some absolute beta changes to negative
+  #abs_res[cor_res < 0] <- -abs_res[cor_res < 0]
+  
+  for (i in 1:ncol(cor_res)) {
+    plot_df1 <- data.frame(V1 = cor_res[, i], V2 = abs_res[, i])
+    rownames(plot_df1) <- rownames(cor_res)
+    
+    # Assign colors based on whether rownames are in list1[[i]]
+    plot_df1$color <- ifelse(rownames(plot_df1) %in% list_type[[i]], "red", "black")
+    plot_df1 <- plot_df1[order(plot_df1$color), ]
+    
+    # Ensure 'color' is treated as a factor
+    #plot_df1$color <- factor(plot_df1$color, levels = c("red", "black"))
+    
+    # Extract the base name for the plot title
+    split_name <- gsub("-corr_res", "", colnames(cor_res)[i])
+    
+    # Create scatter plot
+    p <- ggscatter(plot_df1, x = "V1", y = "V2", size = 0.5,
+                   color = "color",   # Use the 'color' column for coloring the points
+                   xlab = "Correlation Coefficient", ylab = "Absolute Beta Change",
+                   title = split_name) +
+      ylim(0, 1) +
+      xlim(-1, 1) + # Adjust or remove this based on your data
+      scale_color_manual(values = c("black", "red")) +
+      theme(
+        legend.position = "none",       
+        text = element_text(face = "bold"), 
+        axis.title = element_text(face = "bold"), 
+        axis.text = element_text(face = "bold"),  
+        plot.title = element_text(face = "bold", hjust=0.5),  
+        plot.subtitle = element_text(face = "bold") 
+      ) + 
+      guides(color=FALSE)# Center the plot title
+    
+    # Display the plot
+    print(p)
+    ggsave(paste0(gender_state, "_", split_name, ".png"), plot = p, width = 6, height = 7, units="in", dpi=300)
+    
+    # counts <- plot_df2 %>%
+    #   group_by(V1) %>%
+    #   summarize(Count=n())
+    # 
+    # # Cut out first row with 0 being over threshold
+    # counts <- counts[-1, ]
+    # 
+    # #q <- ggbarplot(counts, x="V1", y="Count", xlab="# Age points over SD Threshold", 
+    # #               ylab="Count (not accumulative)", title=split_name)
+    # #plot(q)
+  }
+}
+```
+
+UpSet plot for overlaps in selected CpGs (Fig. 2A)
+
+```{r}
+cpg_filter1 <- readRDS("all_sig_sites.rds")
+cpg_filter2 <- readRDS("male_sig_sites.rds")
+cpg_filter3 <- readRDS("female_sig_sites.rds")
+clock_cpgs <- readRDS("7_23_clock_sites.rds")
+
+common_cpgs <- Reduce(intersect, list(cpg_filter1, cpg_filter2, cpg_filter3))
+length(intersect(common_cpgs, clock_cpgs))
+
+# usethis::use_git_config(user.name = "lemoncarrot", user.email = "kchen020202@gmail.com")
+# usethis::git_sitrep()
+
+filter_list <- list(
+  `Selected aaCpGs` = cpg_filter1,
+  `Male aaCpGs` = cpg_filter2,
+  `Female aaCpGs` = cpg_filter3,
+  `Clock CpGs` = clock_cpgs
+)
+
+m1 <- make_comb_mat(filter_list, mode="distinct")
+
+png("figs/clockallmalefemaleupset.png", width = 6000, height = 1500, res=300)
+UpSet(m1, 
+      pt_size = unit(2, "mm"), 
+      lwd = 1, 
+      comb_col = c("red", "orange", "#8B8000", "black")[comb_degree(m1)],
+        set_order = rownames(m1),
+      top_annotation = upset_top_annotation(m1, height = unit(4, "cm")),
+      right_annotation = upset_right_annotation(m1, width = unit(1.5, "cm")),
+      width = unit(12, "cm"),
+      height = unit(5, "cm"))
+dev.off()
+```
+
+Plot single CpGs (Supp Fig. 2)
+
+```{r}
+set.seed(123)
+# Create split lists
+# Read desired site list
+initial_cpg_list <- readRDS("7_21_complete_sites.rds")
+NUMCPGSITE <- length(initial_cpg_list)
+sites_per_list <- 50000
+num_groups <- ceiling(NUMCPGSITE/sites_per_list)
+
+# Create splits
+split_lists <- vector("list", num_groups)
+for (i in 1:num_groups) {
+  start_index <- (i-1)*sites_per_list + 1
+  end_index <- min(i*sites_per_list, NUMCPGSITE)
+  split_lists[[i]] <- initial_cpg_list[start_index:end_index]
+}
+  
+
+
+plotCpG <- function(cpg_list, gender_state) {
+  plot_list2 <- list()
+  
+  # Check which split to extract from in my files
+  for (cpg_name in cpg_list) {
+    splits <- list.files(path="combined_split_complete")
+    
+    # Find which split
+    num <- 0
+    for (i in 1:length(split_lists)) {
+      if (cpg_name %in% split_lists[[i]]) {
+        num <- i
+      }
+    }
+    temp <- fread(paste0("combined_split_complete/split_", num, ".csv"))
+    temp <- as.data.frame(temp)
+    
+    rownames(temp) <- temp$V1
+    temp <- temp[, -c(1, 2)]
+    
+    # Filter for samples
+    # all_samples, male_samples, female_samples
+    
+    
+    temp <- temp[c("age", cpg_name), ]
+    
+    temp <- as.data.frame(t(temp))
+    
+    colnames(temp) <- c("Age", "Beta")
+    temp <- temp[temp$Age<=80, ]
+    correlation <- cor(temp$Age, temp$Beta, use="complete.obs")
+    correlation <- round(correlation, digits=2)
+    
+    a <- ggscatter(temp, x = "Age", y = "Beta", size = 1, title = cpg_name,
+                     xlab = "Age", ylab = "Beta Values", color = "lightgray") +
+        #geom_smooth(method = "loess", color = "blue", fill = "lightblue", se = FALSE) +
+        geom_smooth(method="lm") + 
+        ylim(0, 1) +
+        xlim(0, 80) + 
+    theme_and_axis_nolegend
+    a <- a + annotate("text", x = 70, y = 1,
+      label = paste0("r = ", correlation), color="red", fontface="bold")
+    
+    plot_list2[[length(plot_list2) + 1]] <- a
+    
+    # if (save==TRUE) {
+    #   ggsave(filename = paste0("figs/", cpg_name, ".png"), plot = a, height=6, width=10, dpi = 300)
+    # }
+  }
+  return(plot_list2)
+}
+
+cpg_list <- c("cg19722847", "cg16867657", "cg09809672", "cg06144905")
+plot_list2 <- plotCpG(cpg_list, 1)
+
+arrangedPlots2 <- ggarrange(plotlist = plot_list2, ncol=2, nrow=2)
+#ggsave("figs/single_cpg_plots.png", plot=last_plot(), width=10, height=8, dpi=300)
+
+# occurrences <- sapply(clock_cpgs, function(x) "cg19722847" %in% x)
+# total <- sum(occurrences)
+# total
+# 
+# cpg_name <- Reduce(intersect, list(Wu_CpGs, Hannum_CpGs, Horvath_CpGs, Levine_CpGs))
+# #k <- sample.int(length(cpg_name), 1)
+# k <- 2
+# print(k)
+# cpg_name <- cpg_name[k]
+# print(cpg_name)
+
+```
+
+Extract Clock Sites - clock_cpgs: list of 9 clocks, ident is first
+author - cpgs: all unique clock cpgs
+UpSet plot (Supp Fig. 2)
+
+```{r}
+Hannum_CpGs <- read_excel("CpGsToInvestigate/hannum_cpgs.xlsx")
+Hannum_CpGs <- Hannum_CpGs$Marker #71
+Levine_CpGs <- read.csv("CpGsToInvestigate/levine_cpgs.csv", stringsAsFactors=FALSE)
+Levine_CpGs <- Levine_CpGs[-1, ]
+Levine_CpGs <- Levine_CpGs$CpG #513
+Horvath_CpGs <- read.csv("CpGsToInvestigate/horvath_cpgs.csv", stringsAsFactors=FALSE)
+Horvath_CpGs <- Horvath_CpGs[-(1:3), 1, drop=FALSE]
+Horvath_CpGs <- Horvath_CpGs[, 1] #353
+McEwen_CpGs <- read.csv("CpGsToInvestigate/mcewen_cpgs.csv")
+McEwen_CpGs <- McEwen_CpGs$CPG #94
+Wu_CpGs <- read_excel("CpGsToInvestigate/aging-11-102399-s003..xlsx")
+Wu_CpGs <- Wu_CpGs[-1, ]
+Wu_CpGs <- Wu_CpGs$CpGs #111
+Belsky_CpGs <- getRequiredProbes(backgroundList=FALSE)
+Belsky_CpGs <- unlist(Belsky_CpGs) #173
+load("CpGsToInvestigate/epitoc.Rd")
+Teschendorff_CpGs <- as.data.frame(dataETOC2.l[1])
+Teschendorff_CpGs <- rownames(Teschendorff_CpGs) #163
+Shireby_CpGs <- readLines("CpGsToInvestigate/CorticalClockCoefs.txt")[-1]
+Shireby_CpGs <- sapply(strsplit(Shireby_CpGs, " "), `[`, 1)
+Shireby_CpGs <- unlist(Shireby_CpGs) #347
+Lu2_CpGs <- read_excel("CpGsToInvestigate/lu2.xlsx")
+Lu2_CpGs <- rbind(colnames(Lu2_CpGs), Lu2_CpGs)
+Lu2_CpGs <- Lu2_CpGs[, 1]
+Lu2_CpGs <- as.character(Lu2_CpGs[[1]]) #140
+clock_cpgs <- list(
+  McEwen = McEwen_CpGs,
+  Wu = Wu_CpGs,
+  Hannum = Hannum_CpGs,
+  Horvath = Horvath_CpGs,
+  Levine = Levine_CpGs,
+  Belsky = Belsky_CpGs,
+  Teschendorff = Teschendorff_CpGs,
+  Shireby = Shireby_CpGs,
+  Lu = Lu2_CpGs
+)
+
+cpgs <- unlist(clock_cpgs)
+cpgs <- unique(cpgs) #1868 total sites
+
+print(paste0("Total Unique CpG sites from 9 clocks explored: ", length(cpgs)))
+
+#write.csv(cpgs, "7_3_overlap.csv")
+
+# Filter for clock sites in 17/22 datasets
+selected_clock_cpgs <- readRDS("7_23_clock_sites.rds")
+for (i in 1:length(clock_cpgs)) {
+  clock_cpgs[[i]] <- intersect(clock_cpgs[[i]], selected_clock_cpgs)
+}
+
+# UpSet plot for clock site overlap 
+# Will modify aesthetics to match when aesthetics for previous plots are finalized.
+m1 <- make_comb_mat(clock_cpgs, mode="distinct")
+UpSet(m1, set_order = rownames(m1))
+#dev.copy(png, "figs/clockcpgupset.png", width=1800, height=900, res=300)
+#dev.off()
+```
+
+Make Clock CpG annotation matrix
+
+```{r}
+# Read 1451 Clock sites present in 17/22 datasets
+clocks <- c("McEwen", "Wu", "Hannum", "Horvath", "Levine", "Belsky", "Teschendorff", "Shireby", "Lu")
+clock_annotations <- data.frame(matrix(ncol = length(clocks), nrow = length(selected_clock_cpgs)))
+names(clock_annotations) <- clocks
+rownames(clock_annotations) <- selected_clock_cpgs
+
+for (i in 1:dim(clock_annotations)[2]) {
+  clock_annotations[selected_clock_cpgs %in% clock_cpgs[[i]], i] <- 1
+}
+clock_annotations[is.na(clock_annotations)] <- 0
+
+ha = rowAnnotation(df = clock_annotations, col = list(
+    McEwen = c("0" = "gray", "1" = "purple"),
+    Wu = c("0" = "gray", "1" = "orange"),
+    Hannum = c("0" = "gray", "1" = "red"),
+    Horvath = c("0" = "gray", "1" = "blue"),
+    Levine = c("0" = "gray", "1" = "green"),
+    Belsky = c("0" = "gray", "1" = "yellow"),
+    Teschendorff = c("0" = "gray", "1" = "pink"),
+    Shireby = c("0" = "gray", "1" = "magenta"),
+    Lu = c("0" = "gray", "1" = "maroon")),
+    simple_anno_size = unit(3, "mm"),
+    show_legend=c(FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE),
+    annotation_name_gp = gpar(fontsize=10, fontfamily="Helvetica")
+)
+```
+
+Main function - generate heatmaps and smooth figures (Fig. 3A, Fig. 3B, Fig. 4A, Fig. 4B)
+
+```{r}
+# Linear iterpolation helper function
+interpolate_na <- function(row) {
+  na_indices <- which(is.na(row))
+  non_na_indices <- which(!is.na(row))
+  
+  if (length(na_indices)==0) {
+    return(row)
+  }
+  
+  interpolated_values <- approx(non_na_indices, row[non_na_indices], xout=na_indices, method="linear", rule=2)$y
+  row[na_indices] <- interpolated_values
+  
+  return(row)
+}
+
+ht_opt$fast_hclust = TRUE
+# Ensure reproducibility of row_km
+set.seed(123)
+
+# num_clusters - number of clusters
+# save - save to files or not
+# clock - clock CpGs or aaCpGs
+# gender_state - 1:all, 2:male, 3:female
+# plot_smooth - smooth figures or not (time constraint)
+mainPipeline <- function(num_clusters, save=FALSE, clock=FALSE, gender_state=1, plot_smooth=FALSE) {
+  Sys.setenv("OBJC_DISABLE_INITIALIZE_FORK_SAFETY" = "YES")
+  # Read matrix
+  if (gender_state==1) {
+    B <- fread("7_21_all_matrix_avg.csv")
+    cpg_filter <- readRDS("all_sig_sites.rds")
+  } else if (gender_state==2) {
+    B <- fread("7_22_male_matrix_avg.csv")
+    cpg_filter <- readRDS("male_sig_sites.rds")
+  } else {
+    B <- fread("7_22_female_matrix_avg.csv")
+    cpg_filter <- readRDS("female_sig_sites.rds")
+  }
+  # remove clock sites from filter
+  clock_sites <- readRDS("7_23_clock_sites.rds")
+  cpg_filter <- cpg_filter[cpg_filter %notin% clock_sites]
+
+  if (clock==TRUE) {
+    cpg_filter <- readRDS("7_23_clock_sites.rds")
+  }
+  
+  B <- as.data.frame(B)
+  rownames(B) <- B[, 1]
+  B <- B[, -1]
+  
+  # Filter
+  B <- B[rownames(B) %in% cpg_filter,]
+  
+  # Scale
+  B <- t(scale(t(B)))
+  B <- as.matrix(B)
+  colnames(B) <- gsub("age_", "", colnames(B))
+  rownames(B) <- cpg_filter
+  
+  # Remove last NA ages
+  B <- B[, -c(82:101)]
+  
+  # Fill in sparse NA values using linear interpolation
+  B <- t(apply(B, 1, interpolate_na))
+  
+  heatmap_width <- unit(8, "cm")
+  heatmap_height <- unit(10, "cm")
+  
+  cluster_labels <- seq_len(num_clusters)
+
+  row_anno <- rowAnnotation(foo = anno_block(gp = gpar(col="black", fill=NA),
+        labels = cluster_labels, 
+        labels_gp = gpar(col = "black", fontsize = 7)),
+        width = unit(4, "mm"))
+  
+  # save colnames to reassign for later
+  temp_colnames <- colnames(B)
+  # set new colnames for easier visualization
+  colnames(B) <- c("0", rep("", 19), "20", rep("", 19), "40", rep("", 19), "60", rep("", 19), "80")
+  
+  
+  if (clock == TRUE) {
+      # Create the heatmap with annotation
+      ht <- Heatmap(B, name = " ", 
+          row_km = num_clusters,
+          row_km_repeats = 10,  # Different start points for kmeans clustering
+          show_row_names = FALSE,
+          cluster_columns = FALSE,
+          row_title = "Clock CpGs", 
+          column_title = "Ages",
+          column_title_side = "bottom",
+          column_names_gp = gpar(fontsize = 8, fontfamily = "Helvetica"),
+          column_names_rot = 0,
+          row_names_gp = gpar(fontsize = 4, fontface = "bold", fontfamily = "Helvetica"),
+          column_title_gp = gpar(fontsize = 10, fontface = "bold", fontfamily="Helvetica"),
+          row_title_gp = gpar(fontsize = 10, fontface = "bold", fontfamily="Helvetica"),
+          right_annotation = ha,
+          width = heatmap_width,   
+          height = heatmap_height,
+          left_annotation = row_anno) 
+  } else {
+      ht <- Heatmap(B, name = " ", 
+          row_km = num_clusters,
+          row_km_repeats = 10,  # Different start points for kmeans clustering
+          show_row_names = FALSE,
+          cluster_columns = FALSE,
+          row_title = "Selected CpGs", 
+          column_title = "Ages",
+          column_title_side = "bottom",
+          column_names_gp = gpar(fontsize = 8, fontfamily = "Helvetica"),
+          column_names_rot = 0,
+          row_names_gp = gpar(fontsize = 4, fontface = "bold", fontfamily = "Helvetica"),
+          column_title_gp = gpar(fontsize = 10, fontface = "bold", fontfamily="Helvetica"),
+          row_title_gp = gpar(fontsize = 10, fontface = "bold", fontfamily="Helvetica"),
+          width = heatmap_width,   
+          height = heatmap_height,
+          left_annotation = row_anno) 
+  }
+  
+  if (save) {
+    # need to fix
+    png(paste0("figs2/", gender_state, clock, num_clusters, "heatmap.png"), width = 2400, height = 2400, units="px", res=300)
+  }
+  
+  # Draw the heatmap
+  ht <- draw(ht)
+  
+  if (save) {
+      dev.off()
+  }
+  
+  # reassign column names
+  colnames(B) <- temp_colnames
+
+  cluster_assignments <- row_order(ht)
+  cluster_vector <- unlist(lapply(1:length(cluster_assignments), function(i) {
+    rep(i, length(cluster_assignments[[i]]))
+  }))
+  # Assign cluster indices to rows
+  B_with_clusters <- cbind(B, Cluster=cluster_vector[order(unlist(cluster_assignments))])
+  B_with_clusters <- as.data.frame(B_with_clusters)
+  
+  if (plot_smooth) {
+    future_lapply(1:num_clusters, function(j) {
+        plot_cluster(j, B_with_clusters, save, gender_state, clock, num_clusters)
+    })
+  }
+  
+  # Below code is without parallelization
+  
+  # for (j in 1:num_clusters) {
+  #   df <- B_with_clusters[which(B_with_clusters$Cluster==j),]
+  #   df <- df[, -ncol(df)]
+  #   long_df <- df %>%
+  #     rownames_to_column(var="Sample") %>%
+  #     pivot_longer(cols=-c("Sample"), names_to="Age", values_to="Beta") %>%
+  #     mutate(Age=as.numeric(Age))
+  #   long_df <- na.omit(long_df)
+  # 
+  #   #fit <- lm(Beta ~ bs(Age, df=5), data=long_df)
+  #   #long_df$Fitted <- predict(fit)
+  #   
+  #   a <- ggscatter(long_df, x="Age", y="Beta", size=1, title=paste("Cluster", j),
+  #             xlab = "Age", ylab = "Scaled Beta Values", color="lightgray") +
+  #     #geom_line(aes(y=Fitted), color="blue") +
+  #     geom_smooth(method = "loess", color = "blue", fill = "lightblue", se = FALSE) +
+  #     #geom_smooth(method = "gam", formula = y ~ s(x, bs = "ps"), 
+  #                #color = "blue", fill = "lightblue", se = FALSE) +
+  #     ylim(-5, 5) + 
+  #     theme(plot.title = element_text(hjust = 0.5))
+  #   print(a)
+  #   if (save==TRUE) {
+  #     ggsave(filename=paste0(gender_state, clock, num_clusters, "Cluster_", j, ".png"), plot=a, dpi=300)
+  #   }
+  # }
+  return(B_with_clusters)
+}
+
+# Code to plot single cluster (is parallelized using future_lapply within mainPipeline)
+plot_cluster <- function(j, B_with_clusters, save, gender_state, clock, num_clusters) {
+    df <- B_with_clusters[which(B_with_clusters$Cluster == j), ]
+    df <- df[, -ncol(df)]
+    long_df <- df %>%
+      rownames_to_column(var = "Sample") %>%
+      pivot_longer(cols = -c("Sample"), names_to = "Age", values_to = "Beta") %>%
+      mutate(Age = as.numeric(Age))
+    long_df <- na.omit(long_df)
+    #long_df <- long_df[!(long_df$Age==0), ]
+    median_df <- long_df %>%
+      group_by(Age) %>%
+      summarise(Median_Beta = median(Beta))
+    
+    #loess_df <- long_df[!(long_df$Age==0), ]
+
+    print("plotting now")
+    a <- ggscatter(long_df, x = "Age", y = "Beta", size = 1, title = paste("Cluster", j),
+                   xlab = "Age", ylab = " ", color = "lightgray") +
+      #geom_smooth(data = loess_df, method = "loess", color = "blue", fill = "lightblue", se = FALSE) +
+      ylim(-5, 5) +
+      geom_point(data = median_df, aes(x = Age, y = Median_Beta), color = "blue", size = 2) +
+      theme_and_axis_nolegend
+    
+    if (save) {
+        ggsave(filename = paste0("figs2/", gender_state, clock, num_clusters, "nsCluster_", j, ".png"), plot = a, height=6, width=10, dpi = 900)
+    }
+    
+    print(a)
+    return(a)
+}
+```
+
+Run mainPipeline
+
+```{r}
+# Run main function to generate heatmaps and smooth figures
+plan(multisession)
+set.seed(123)
+
+# 13 seconds
+# start_time <- Sys.time()
+four_cluster_clock <- mainPipeline(4, save=FALSE, clock=TRUE, gender_state=1, plot_smooth=FALSE)
+# end_time <- Sys.time()
+# print(end_time - start_time)
+#fwrite(four_cluster_clock, "four_cluster_clock.csv")
+
+# 16 minutes
+# start_time <- Sys.time()
+four_cluster_select <- mainPipeline(4, save=FALSE, clock=FALSE, gender_state=1, plot_smooth=FALSE)
+# end_time <- Sys.time()
+# print(end_time - start_time)
+#fwrite(four_cluster_select, "four_cluster_select.csv")
+
+
+# #  9 seconds
+# start_time <- Sys.time()
+five_cluster_clock <- mainPipeline(5, save=TRUE, clock=TRUE, gender_state=1, plot_smooth=TRUE)
+# end_time <- Sys.time()
+# print(end_time - start_time)
+# #fwrite(five_cluster_clock, "five_cluster_clock.csv")
+# 
+# # 1.2 hours
+# start_time <- Sys.time()
+five_cluster_select <- mainPipeline(5, save=TRUE, clock=FALSE, gender_state=1, plot_smooth=TRUE)
+# end_time <- Sys.time()
+# print(end_time - start_time)
+# fwrite(five_cluster_select, "five_cluster_select.csv")
+# 
+# # 9 seconds
+# start_time <- Sys.time()
+six_cluster_clock <- mainPipeline(6, save=TRUE, clock=TRUE, gender_state=1, plot_smooth=TRUE)
+# end_time <- Sys.time()
+# print(end_time - start_time)
+# fwrite(six_cluster_clock, "six_cluster_clock.csv")
+# 
+# # 13 minutes
+# start_time <- Sys.time()
+six_cluster_select <- mainPipeline(6, save=TRUE, clock=FALSE, gender_state=1, plot_smooth=TRUE)
+# end_time <- Sys.time()
+# print(end_time - start_time)
+# fwrite(six_cluster_select, "six_cluster_select.csv")
+
+# 1.48 hours
+#start_time <- Sys.time()
+males <- mainPipeline(4, save=TRUE, clock=FALSE, gender_state=2, plot_smooth=TRUE)
+#end_time <- Sys.time()
+#print(end_time- start_time)
+
+# 10 minutes
+#start_time <- Sys.time()
+females <- mainPipeline(4, save=TRUE, clock=FALSE, gender_state=3, plot_smooth=TRUE)
+#end_time <- Sys.time()
+#print(end_time- start_time)
+
+# # 1.7 hours
+# start_time <- Sys.time()
+males <- mainPipeline(5, save=TRUE, clock=FALSE, gender_state=2, plot_smooth=TRUE)
+# end_time <- Sys.time()
+# print(end_time- start_time)
+# 
+# # 5 minutes
+# start_time <- Sys.time()
+females <- mainPipeline(5, save=TRUE, clock=FALSE, gender_state=3, plot_smooth=TRUE)
+# end_time <- Sys.time()
+# print(end_time- start_time)
+# 
+# # 54 minutes
+# start_time <- Sys.time()
+males <- mainPipeline(6, save=TRUE, clock=FALSE, gender_state=2, plot_smooth=TRUE)
+# end_time <- Sys.time()
+# print(end_time- start_time)
+# 
+# # 4 mins
+# start_time <- Sys.time()
+females <- mainPipeline(6, save=TRUE, clock=FALSE, gender_state=3, plot_smooth=TRUE)
+# end_time <- Sys.time()
+# print(end_time- start_time)
+```
+
+Determine enrichment of CpG sites in clusters
+- enrichment of clock CpGs in clock clusters
+- enrichment of aaCpGs in each window in aaCpG clusters (Fig. 3C & Fig. 3D)
+
+*Necessary to run mainPipeline to have the matrices with cluster annotations ready, but can be done quickly by specifying save=FALSE and plot_smooth=FALSE
+*Necessary to run filter code to have list1 ready
+
+```{r}
+#Fischer's exact test
+fischers <- function(cont_table, name, num_clusters) {
+  p_values <- numeric(num_clusters)
+  for (i in 1:num_clusters) {
+    in_cluster <- cont_table[2*i-1, name]
+    not_in_cluster <- cont_table[2*i, name]
+    total_in_cluster <- sum(cont_table[2*i-1, -1])
+    total_not_in_cluster <- sum(cont_table[2*i, -1])
+    
+    matrix_m <- matrix(c(in_cluster, total_in_cluster - in_cluster,
+                        not_in_cluster, total_not_in_cluster - not_in_cluster),
+                      nrow=2)
+    
+    fisher_test <- fisher.test(matrix_m)
+    p_values[i] <- fisher_test$p.value
+  }
+  return(p_values)
+}
+
+clock_cpgs_list <- list(McEwen_CpGs, Wu_CpGs, Hannum_CpGs, Horvath_CpGs, Levine_CpGs, Belsky_CpGs, Teschendorff_CpGs, Shireby_CpGs, Lu2_CpGs)
+names(clock_cpgs_list) <- c("McEwen", "Wu", "Hannum", "Horvath", "Levine", "Belsky", "Teschendorff", "Shireby", "Lu")
+
+#list1, list2, and list3 are the same structure as clock_cpgs_list, already have names set
+
+clusterEnrichment <- function(matrix_with_clusters, num_clusters, table_to_match) {
+  clusters <- lapply(1:num_clusters, function(i) rownames(matrix_with_clusters)[which(matrix_with_clusters[, ncol(matrix_with_clusters)] == i)])
+  
+  cont_table <- data.frame(matrix(NA, nrow=0, ncol=length(table_to_match)+1))
+  colnames(cont_table) <- c("clusters", names(table_to_match))
+  # cont_table <- data.frame(
+  #   clusters = character(),
+  #   mcewen_clock_cpgs = integer(),
+  #   wu_clock_cpgs = integer(),
+  #   hannum_clock_cpgs = integer(),
+  #   horvath_clock_cpgs = integer(),
+  #   levine_clock_cpgs = integer(),
+  #   belsky_clock_cpgs = integer(),
+  #   teschendorff_clock_cpgs = integer(),
+  #   shireby_clock_cpgs = integer(),
+  #   lu_clock_cpgs = integer(),
+  #   stringsAsFactors = FALSE
+  # )
+  # temp_names <- colnames(cont_table)
+  
+  cpg_count_table <- matrix(0, nrow=num_clusters, ncol=length(table_to_match))
+  colnames(cpg_count_table) <- names(table_to_match)
+  rownames(cpg_count_table) <- paste("Cluster", 1:num_clusters)
+  
+  # cpg_count_table <- matrix(0, nrow = num_clusters, ncol = length(clock_cpgs))
+  # colnames(cpg_count_table) <- names(clock_cpgs)
+  # rownames(cpg_count_table) <- paste("Cluster", 1:num_clusters)
+  
+  for (i in 1:num_clusters) {
+    cluster_cpgs <- rownames(matrix_with_clusters)[which(matrix_with_clusters[, ncol(matrix_with_clusters)] == i)]
+    
+    cpg_counts <- sapply(table_to_match, function(x) sum(cluster_cpgs %in% x))
+    
+    # Store the cpg_counts in the cpg_count_table
+    cpg_count_table[i, ] <- cpg_counts
+    
+    # Create data frames for in-cluster and not-in-cluster
+    in_cluster <- data.frame(
+        clusters = paste0("In Cluster ", i),
+        t(cpg_counts),  # transpose cpg_counts to match the columns of cont_table
+        stringsAsFactors = FALSE
+    )
+    
+    not_in_cluster_counts <- sapply(1:length(table_to_match), function(j) length(table_to_match[[j]]) - cpg_counts[j])
+    not_in_cluster <- data.frame(
+        clusters = paste0("Not In Cluster ", i),
+        t(not_in_cluster_counts),  # transpose to match structure
+        stringsAsFactors = FALSE
+    )
+    
+    colnames(in_cluster) <- c("clusters", names(table_to_match))
+    colnames(not_in_cluster) <- c("clusters", names(table_to_match))
+
+    # Bind the new rows to cont_table
+    cont_table <- rbind(cont_table, in_cluster, not_in_cluster)
+  }
+  
+  get_adjusted_pvalues <- function(cont_table, num_clusters, clock_name) {
+    p_values <- fischers(cont_table, clock_name, num_clusters)
+    adjusted_p_values <- p.adjust(p_values, method = "BH")
+    return(adjusted_p_values)
+  }
+  
+  # Get adjusted p-values for each clock
+  adjusted_p_values_list <- lapply(names(table_to_match), function(name) get_adjusted_pvalues(cont_table, num_clusters, name))
+  adjusted_p_values <- do.call(cbind, adjusted_p_values_list)
+  
+  heatmap_data <- data.frame(adjusted_p_values)
+  colnames(heatmap_data) <- names(table_to_match)
+  rownames(heatmap_data) <- paste("Cluster", 1:num_clusters)
+  print(heatmap_data)
+  
+  cpg_count_table_df <- as.data.frame(cpg_count_table)
+  colnames(cpg_count_table_df) <- names(table_to_match)
+  rownames(cpg_count_table_df) <- paste("Cluster", 1:num_clusters)
+  print(cpg_count_table_df)
+  
+  color_map <- data.frame(matrix(NA, nrow=num_clusters, ncol=length(table_to_match)))
+  
+  for (i in 1:nrow(cpg_count_table_df)) {
+    for (j in 1:ncol(cpg_count_table_df)) {
+      if (cpg_count_table_df[i, j] < sum(cpg_count_table_df[, j])/4 &
+          heatmap_data[i, j] < 0.05) {
+        color_map[i, j] = "Down"
+      } else if (cpg_count_table_df[i, j] > sum(cpg_count_table_df[, j])/4 &
+                 heatmap_data[i, j] < 0.05) {
+        color_map[i, j] = "Up"
+      } else {
+        color_map[i, j] = "None"
+      }
+    }
+  }
+  
+  color_mapping <- function(x) {
+    if (x == "Up") {
+      return("#e69f9f")
+    } else if (x == "Down") {
+      return("#9ecae1")
+    } else {
+      return("grey")
+    }
+  }
+  
+  # annotation_matrix <- apply(heatmap_data, c(1, 2), function(p_value) {
+  #   if (p_value < 0.001) {
+  #     return("***")
+  #   } else if (p_value < 0.01) {
+  #     return("**")
+  #   } else if (p_value < 0.05) {
+  #     return("*")
+  #   } else {
+  #     return("")
+  #   }
+  # })
+  
+  color_map_colors <- apply(color_map, c(1, 2), color_mapping)
+  
+  ht <- Heatmap(
+    -log10(heatmap_data), 
+    name = "-log10 Adjusted P-Values", 
+    col = colorRamp2(c(0, 1), c("white", "black")),
+    cell_fun = function(j, i, x, y, width, height, fill) {
+      grid.rect(x = x, y = y, width = width, height = height, 
+                gp = gpar(fill = color_map_colors[i, j], col = NA))
+      grid.text(cpg_count_table_df[i, j], x = x, y = y, gp = gpar(col = "black", fontfamily = "Helvetica"))
+    },
+    cluster_rows = FALSE,
+    cluster_columns = FALSE,
+    show_heatmap_legend = FALSE,
+    column_names_gp = gpar(fontsize = 10, fontface = "bold", fontfamily = "Helvetica"),
+          row_names_gp = gpar(fontsize = 10, fontface = "bold", fontfamily = "Helvetica")
+  )
+
+  return(ht)
+}
+
+# Run
+
+#png(filename="figs/clockcpgclusterenrichment.png", width = 8, height = 5, units = "in", res=300)
+ht <- clusterEnrichment(four_cluster_clock, 4, clock_cpgs_list)
+draw(ht, column_title = "Cluster Enrichment by Clocks", column_title_gp = gpar(fontsize=14, fontface="bold", fontfamily="Helvetica")) 
+#dev.off()
+
+#png(filename="figs/windowclusterenrichment.png", width = 10, height = 5, units = "in", res=300)
+ht2 <- clusterEnrichment(four_cluster_select, 4, list1)
+draw(ht2, column_title = "Cluster Enrichment by Windows", column_title_gp = gpar(fontsize=14, fontface="bold", fontfamily="Helvetica")) 
+#dev.off()
+
+
+
+```
+
+GO pathway enrichment (Supp Fig. 7)
+
+```{r}
+# mainPipeline must be run already
+# double check cluster numbers, but should be consistent on seed 123
+earlyagegroup <- four_cluster_select[four_cluster_select$Cluster==1 | four_cluster_select$Cluster==3, ]
+earlycpgs <- rownames(earlyagegroup)
+
+oldagegroup <- four_cluster_select[four_cluster_select$Cluster==2 | four_cluster_select$Cluster==4, ]
+oldcpgs <- rownames(oldagegroup)
+
+enrich <- function(cpg_set, collection, promoter, plot_title, save_title) {
+  if (promoter) {
+    temp <- gometh(sig.cpg = cpg_set, array.type="450K", collection=collection, 
+                   genomic.features = c("TSS200",
+                   "TSS1500",
+                  "1stExon"))
+  } else {
+    temp <- gometh(sig.cpg = cpg_set, array.type="450K", collection=collection)
+  }
+  temp <- temp[temp$P.DE < 0.05, ]
+  temp <- temp[order(temp$P.DE), ]
+  temp$P.DE <- -log10(temp$P.DE)
+  if (nrow(temp)>0) {
+    plot <- head(temp, 10)
+    if (collection=="GO") {
+      p <- ggdotchart(plot, x="TERM", y="P.DE", ggtheme = theme_pubr()) +
+    geom_segment(aes(xend = reorder(TERM, P.DE), yend = 0), color = "gray") +
+    geom_point(size = 4, color = "blue") +
+    coord_flip() +
+    labs(title = paste0(plot_title),
+         x = " ",
+         y = "-log10(Adjusted p-value)") +
+        theme_and_axis_nolegend
+    } else if (collection=="KEGG") {
+      p <- ggdotchart(plot, x="Description", y="P.DE", ggtheme = theme_pubr()) +
+    geom_segment(aes(xend = reorder(Description, P.DE), yend = 0), color = "gray") +
+    geom_point(size = 4, color = "blue") +
+    coord_flip() +
+    labs(title = paste0(plot_title),
+         x = "KEGG Term",
+         y = "-log10(Adjusted p-value)") +
+        theme_and_axis_nolegend
+    }
+    print(p)
+    ggsave(save_title, plot=last_plot(), width=10, height=6, units="in", dpi=900)
+  }
+}
+
+#enrich(earlycpgs, "GO", TRUE, "Early, GO, Promoter", "early_go_promoter.png")
+enrich(earlycpgs, "GO", FALSE, "Early aaCpGs, GO", "figs/early_go_whole.png")
+#enrich(earlycpgs, "KEGG", TRUE, "Early, KEGG, Promoter", "early_kegg_promoter.png")
+#enrich(earlycpgs, "KEGG", FALSE, "Early, KEGG, Whole Gene Body", "early_kegg_whole.png")
+#enrich(oldcpgs, "GO", TRUE, "Late, GO, Promoter", "late_go_promoter.png")
+enrich(oldcpgs, "GO", FALSE, "Late aaCpGs, GO", "figs/late_go_whole.png")
+#enrich(oldcpgs, "KEGG", TRUE, "Late, KEGG, Promoter", "late_kegg_promoter.png")
+#enrich(oldcpgs, "KEGG", FALSE, "Late, KEGG, Whole Gene Body", "late_kegg_whole.png")
+
+# BELOW IS OLD CODE (not using missMethyl)
+# 
+# 
+# # # testing only promoter regions
+# # temp1 <- gometh(sig.cpg=CPGLIST, array.type="450K",
+# #                         collection="KEGG", genomic.features = c("TSS200",
+# #                                                                 "TSS1500",
+# #                                                                 "1stExon"))
+# # 
+# # # testing whole gene body
+# # temp2 <- gometh(sig.cpg=CPGLIST, array.type="450K",
+# #                         collection="KEGG")
+# # 
+# # # collection can be "KEGG" or "GO"
+# # 
+# # # can specify gene set for example below
+# # # hallmark <- readRDS(url("http://bioinf.wehi.edu.au/MSigDB/v7.1/Hs.h.all.v7.1.entrez.rds"))
+# # # set parameter collection = hallmark
+# 
+# 
+# 
+# 
+# enrich <- function(sig_cpg, cluster, type) {
+#   temp_ann <- ann[sig_cpg, ]
+#   genes <- temp_ann$genesUniq
+#   genes <- as.data.frame(genes)
+#   genes_unlist <- genes %>%
+#     separate_rows(genes, sep=";") %>%
+#     distinct()
+#   genes_unlist <- na.omit(genes_unlist)
+#   genes <- unlist(genes_unlist)
+#   
+#   #clean up gene version
+#   genes <- gsub("\\..*", "", genes)
+#   
+#   gene_entrez <- bitr(genes, fromType = "SYMBOL", toType = "ENTREZID", OrgDb = org.Hs.eg.db)
+#   entrez_ids <- gene_entrez$ENTREZID
+#   
+#   if (type=="GO") {
+#     go_bp <- as.data.frame(enrichGO(gene = genes, OrgDb = org.Hs.eg.db, keyType = "SYMBOL", 
+#                       ont = "ALL", pAdjustMethod = "BH", pvalueCutoff = 0.05))
+#   } else if (type=="KEGG") {
+#     go_bp <- as.data.frame(enrichKEGG(gene = entrez_ids, organism = "hsa", 
+#                                       keyType = "kegg", pAdjustMethod = "BH", pvalueCutoff = 0.05))
+#   }
+#   
+#   cluster_name <- paste0("Cluster ", cluster)
+#   if (nrow(go_bp)>0) {
+#     go_bp$Cluster <- cluster_name
+#   } 
+#   return(list(bp=go_bp))
+# }
+# 
+# GOEnrich <- function(matrix_with_clusters, num_clusters, type) {
+#   clusters <- lapply(1:num_clusters, function(i) rownames(matrix_with_clusters)[which(matrix_with_clusters[, ncol(matrix_with_clusters)] == i)])
+#   go_bp_results <- data.frame()
+#   for (i in 1:num_clusters) {
+#     cluster_name <- paste0("Cluster ", i)
+#     sig_cpg <- unlist(clusters[i])
+#     enrichment_results <- enrich(sig_cpg, i, type)
+#     
+#     go_bp_results <- rbind(go_bp_results, enrichment_results$bp)
+#   }
+#   return(go_bp_results)
+# }
+# 
+# go_results <- GOEnrich(four_cluster_select, 4, "GO")
+# go_results$plot_value <- -log10(go_results$p.adjust)
+# kegg_results <- GOEnrich(four_cluster_select, 4, "KEGG")
+# kegg_results$plot_value <- -log10(kegg_results$p.adjust)
+# 
+# 
+# #LOLLIPOP PLOTS HERE
+# 
+# for (i in 1:length(unique(go_results$Cluster))) {
+#   temp <- go_results[go_results$Cluster==paste0("Cluster ", i), ]
+#   temp <- temp[order(temp$p.adjust), ]
+#   top_results <- head(temp, 10)
+#   
+#   p <- ggdotchart(top_results, x="Description", y="plot_value", ggtheme = theme_pubr()) +
+#     geom_segment(aes(xend = reorder(Description, -p.adjust), yend = 0), color = "gray") +
+#     geom_point(size = 4, color = "blue") +
+#     coord_flip() +
+#     labs(title = paste0("Cluster ", i, " GO Enrichment"),
+#          x = "GO Term",
+#          y = "-log10(Adjusted p-value)") 
+#   print(p)
+#   
+#   # p <- ggplot(top_results, aes(x = reorder(Description, -p.adjust), y = -log10(p.adjust))) +
+#   #   geom_segment(aes(xend = reorder(Description, -p.adjust), yend = 0), color = "gray") +
+#   #   geom_point(size = 4, color = "blue") +
+#   #   coord_flip() +
+#   #   theme_minimal() +
+#   #   labs(title = paste0("Cluster ", i, " GO Enrichment"),
+#   #        x = "GO Term",
+#   #        y = "-log10(Adjusted p-value)") +
+#   #   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+# 
+#   ggsave(filename=paste0("go", i, ".png"), plot=last_plot())
+# }
+# 
+# for (i in 1:length(unique(kegg_results$Cluster))) {
+#   temp <- kegg_results[kegg_results$Cluster==unique(kegg_results$Cluster)[i], ]
+#   temp <- temp[order(temp$p.adjust), ]
+#   top_results <- head(temp, 10)
+#   
+#   p <- ggdotchart(top_results, x="Description", y="plot_value", ggtheme = theme_pubr()) +
+#     geom_segment(aes(xend = reorder(Description, -p.adjust), yend = 0), color = "gray") +
+#     geom_point(size = 4, color = "blue") +
+#     coord_flip() +
+#     labs(title = paste0("Cluster ", i, " KEGG Enrichment"),
+#          x = "KEGG Term",
+#          y = "-log10(Adjusted p-value)") 
+#   print(p)
+#   ggsave(filename=paste0("kegg", i, ".png"), plot=last_plot())
+# }
+# 
+# hallmark <- readRDS(url("http://bioinf.wehi.edu.au/MSigDB/v7.1/Hs.h.all.v7.1.entrez.rds"))
+```
+
+Genomic Distribution (Fig. ??)
+
+```{r}
+ann <- read.table("HM450.hg38.manifest.tsv", sep="\t", header=TRUE, quote="", comment.char="", fileEncoding = "UTF-8")
+ann <- ann[!is.na(ann$CpG_chrm) & !is.na(ann$CpG_beg) & !is.na(ann$CpG_end), ]
+rownames(ann) <- ann$probeID
+#earlyagegroup <- four_cluster_select[four_cluster_select$Cluster==1 | four_cluster_select$Cluster==3, ]
+#earlycpgs <- rownames(earlyagegroup)
+
+#oldagegroup <- four_cluster_select[four_cluster_select$Cluster==2 | four_cluster_select$Cluster==4, ]
+#oldcpgs <- rownames(oldagegroup)
+male_aaCpGs <- readRDS("male_sig_sites.rds")
+female_aaCpGs <- readRDS("female_sig_sites.rds")
+all_aaCpGs <- readRDS("all_sig_sites.rds")
+M28 <- read.csv("CPG_position.csv")
+M28$end <- M28$start + 2
+K450 <- ann[, 1:3]
+colnames(K450) <- c("chr", "start", "end")
+selected <- K450[rownames(K450) %in% all_aaCpGs, ]
+#maleSelected <- K450[rownames(K450) %in% male_aaCpGs, ]
+#femaleSelected <- K450[rownames(K450) %in% female_aaCpGs, ]
+#youngSelected <- K450[rownames(K450) %in% earlycpgs, ]
+#oldSelected <- K450[rownames(K450) %in% oldcpgs, ]
+all_sites <- readRDS("7_23_all_sites.rds")
+K300 <- ann[rownames(ann) %in% all_sites, 1:3]
+
+set.seed(123)
+M1 <- M28[sample(nrow(M28), size=1000000, replace=FALSE), ]
+
+
+
+lgd_points = Legend(at = c("Whole Genome CpGs"), type = "points", 
+    legend_gp = gpar(col = "blue"), title_position = "topleft", 
+    title = " ")
+lgd_points2 = Legend(at = c("Trimmed CpGs"), type = "points", 
+    legend_gp = gpar(col = "red"), title_position = "topleft", 
+    title = " ")
+lgd_points3 = Legend(at = c("Selected aaCpGs"), type = "points", 
+    legend_gp = gpar(col = "green"), title_position = "topleft", 
+    title = " ")
+# lgd_points4 = Legend(at = c("old aaCpGs"), type = "points", 
+#     legend_gp = gpar(col = "purple"), title_position = "topleft", 
+#     title = " ")
+lgd_list_vertical = packLegend(lgd_points, lgd_points2, lgd_points3)
+
+#save(M28, K300, selected, file="10_15.RData")
+#load("10_15.RData")
+
+png("figs/circos4.png", width = 8, height=6, units="in", res=300)
+plot.new()
+circle_size = unit(1, "snpc")
+pushViewport(viewport(x = 0, y = 0.5, width = circle_size, height = circle_size,
+    just = c("left", "center")))
+par(omi = gridOMI(), new = TRUE)
+#vps <- baseViewports()
+#par(new = TRUE, fig = gridFIG())
+circos.initializeWithIdeogram(chromosome.index = paste0("chr", 1:22), species="hg38")
+        #circos.genomicDensity(M28, col = c("#FF000080"), track.height = 0.1)
+circos.genomicDensity(M1, col=c("blue"), track.height=0.1)
+circos.genomicDensity(K300, col=c("red"), track.height=0.1)
+circos.genomicDensity(selected, col=c("green"), track.height=0.1)
+#circos.genomicDensity(oldSelected, col=c("purple"), track.height=0.1)
+
+upViewport()
+draw(lgd_list_vertical, x = circle_size, just = "left")
+dev.off()
+```
+
+```{r}
+#all aaCpG, cluster 1, cluster 2, cluster 3, cluster 4
+#all aaCpG, male aaCpG, female aaCpG
+ann <- read.table("HM450.hg38.manifest.tsv", sep="\t", header=TRUE, quote="", comment.char="", fileEncoding = "UTF-8")
+ann <- ann[!is.na(ann$CpG_chrm) & !is.na(ann$CpG_beg) & !is.na(ann$CpG_end), ]
+rownames(ann) <- ann$probeID
+all_aaCpG <- rownames(four_cluster_select)
+clus1 <- rownames(four_cluster_select[four_cluster_select$Cluster==1,] )
+clus2 <- rownames(four_cluster_select[four_cluster_select$Cluster==2,] )
+clus3 <- rownames(four_cluster_select[four_cluster_select$Cluster==3,] )
+clus4 <- rownames(four_cluster_select[four_cluster_select$Cluster==4,] )
+all_GR <- ann[rownames(ann) %in% all_aaCpG, 1:3]
+clus1_GR <- ann[rownames(ann) %in% clus1, 1:3]
+clus2_GR <- ann[rownames(ann) %in% clus2, 1:3]
+clus3_GR <- ann[rownames(ann) %in% clus3, 1:3]
+clus4_GR <- ann[rownames(ann) %in% clus4, 1:3]
+
+lgd_points = Legend(at = c("Selected aaCpGs"), type = "points", 
+    legend_gp = gpar(col = "blue"), title_position = "topleft", 
+    title = " ")
+lgd_points2 = Legend(at = c("Cluster 1"), type = "points", 
+    legend_gp = gpar(col = "red"), title_position = "topleft", 
+    title = " ")
+lgd_points3 = Legend(at = c("Cluster 2"), type = "points", 
+    legend_gp = gpar(col = "green"), title_position = "topleft", 
+    title = " ")
+lgd_points4 = Legend(at = c("Cluster 3"), type = "points", 
+    legend_gp = gpar(col = "purple"), title_position = "topleft", 
+    title = " ")
+lgd_points5 = Legend(at = c("Cluster 4"), type = "points", 
+    legend_gp = gpar(col = "yellow"), title_position = "topleft", 
+    title = " ")
+lgd_list_vertical = packLegend(lgd_points, lgd_points2, lgd_points3, lgd_points4, lgd_points5)
+
+png("figs/circos5.png", width = 8, height=6, units="in", res=300)
+plot.new()
+circle_size = unit(1, "snpc")
+pushViewport(viewport(x = 0, y = 0.5, width = circle_size, height = circle_size,
+    just = c("left", "center")))
+par(omi = gridOMI(), new = TRUE)
+#vps <- baseViewports()
+#par(new = TRUE, fig = gridFIG())
+circos.initializeWithIdeogram(chromosome.index = paste0("chr", 1:22), species="hg38")
+        #circos.genomicDensity(M28, col = c("#FF000080"), track.height = 0.1)
+circos.genomicDensity(all_GR, col=c("blue"), track.height=0.1)
+circos.genomicDensity(clus1_GR, col=c("red"), track.height=0.1)
+circos.genomicDensity(clus2_GR, col=c("green"), track.height=0.1)
+circos.genomicDensity(clus3_GR, col=c("purple"), track.height=0.1)
+circos.genomicDensity(clus4_GR, col=c("yellow"), track.height=0.1)
+
+upViewport()
+draw(lgd_list_vertical, x = circle_size, just = "left")
+dev.off()
+```
+
+```{r}
+ann <- read.table("HM450.hg38.manifest.tsv", sep="\t", header=TRUE, quote="", comment.char="", fileEncoding = "UTF-8")
+ann <- ann[!is.na(ann$CpG_chrm) & !is.na(ann$CpG_beg) & !is.na(ann$CpG_end), ]
+rownames(ann) <- ann$probeID
+all_aaCpG <- rownames(four_cluster_select)
+male_aaCpG <- readRDS("male_sig_sites.rds")
+female_aaCpG <- readRDS("female_sig_sites.rds")
+
+all_GR <- ann[rownames(ann) %in% all_aaCpG, 1:3]
+male_GR <- ann[rownames(ann) %in% male_aaCpG, 1:3]
+female_GR <- ann[rownames(ann) %in% female_aaCpG, 1:3]
+
+lgd_points = Legend(at = c("Selected aaCpGs"), type = "points", 
+    legend_gp = gpar(col = "blue"), title_position = "topleft", 
+    title = " ")
+lgd_points2 = Legend(at = c("Male aaCpGs"), type = "points", 
+    legend_gp = gpar(col = "red"), title_position = "topleft", 
+    title = " ")
+lgd_points3 = Legend(at = c("Female aaCpGs"), type = "points", 
+    legend_gp = gpar(col = "green"), title_position = "topleft", 
+    title = " ")
+lgd_list_vertical = packLegend(lgd_points, lgd_points2, lgd_points3)
+
+png("figs/circos6.png", width = 8, height=6, units="in", res=300)
+plot.new()
+circle_size = unit(1, "snpc")
+pushViewport(viewport(x = 0, y = 0.5, width = circle_size, height = circle_size,
+    just = c("left", "center")))
+par(omi = gridOMI(), new = TRUE)
+#vps <- baseViewports()
+#par(new = TRUE, fig = gridFIG())
+circos.initializeWithIdeogram(chromosome.index = paste0("chr", 1:22), species="hg38")
+        #circos.genomicDensity(M28, col = c("#FF000080"), track.height = 0.1)
+circos.genomicDensity(all_GR, col=c("blue"), track.height=0.1)
+circos.genomicDensity(male_GR, col=c("red"), track.height=0.1)
+circos.genomicDensity(female_GR, col=c("green"), track.height=0.1)
+
+
+upViewport()
+draw(lgd_list_vertical, x = circle_size, just = "left")
+dev.off()
+```
+
+
+
+EVERYTHING BELOW IS OLD/EXTRA CODE
+
+```{r}
+ann2 <- read.table("HM450.hg38.manifest.tsv", sep="\t", header=TRUE, quote="", comment.char="", fileEncoding = "UTF-8")
+rownames(ann2) <- ann2$probeID
+M28 <- read.csv("CPG_position.csv")
+ann <- read.table("HM450.hg38.manifest.tsv", sep="\t", header=TRUE, quote="", comment.char="", fileEncoding = "UTF-8")
+ann <- ann[!is.na(ann$CpG_chrm) & !is.na(ann$CpG_beg) & !is.na(ann$CpG_end), ]
+
+
+
+colors <- c("green", "blue", "red")  # Colors for each group
+group_labels <- c("28M CpGs", "450K Array CpGs", "All aaCpGs")  # Labels for each group
+
+png("figs/karyotype.png", width = 10, height = 6, units = "in", res = 300)
+kp <- plotKaryotype(genome = "hg38")
+
+plot_ranges <- list(
+  c(0.55, 0.95),  # Range for the first group
+  c(0.35, 0.75),  # Range for the second group
+  c(0.15, 0.55)#,  # Range for the third group
+  #c(0.0, 0.4)     # Range for the fourth group
+)
+
+# M28$end <- M28$start + 2
+# granges_cpg <- GRanges(
+#   seqnames = M28$chr,
+#   ranges = IRanges(start = M28$start, end=M28$start)
+# )
+# kpPlotDensity(kp, data=granges_cpg, col=colors[1], window.size=1e6, r0 = plot_ranges[[1]][1], r1 = plot_ranges[[1]][2])
+
+# granges_cpg <- GRanges(
+#   seqnames = ann$CpG_chrm,  # Chromosome
+#   ranges = IRanges(start = ann$CpG_beg, end = ann$CpG_end),  # Base-pair position
+#   names = rownames(ann)  # CpG identifiers
+# )
+# kpPlotDensity(kp, data = granges_cpg, col = colors[2], window.size = 1e6, r0 = plot_ranges[[2]][1], r1 = plot_ranges[[2]][2])
+  
+
+all_aaCpGs <- readRDS("all_sig_sites.rds")
+temp <- ann2[all_aaCpGs, ]
+granges_cpg <- GRanges(
+  seqnames = temp$CpG_chrm,
+  ranges = IRanges(start = temp$CpG_beg, end=temp$CpG_end),
+  names = rownames(temp)
+)
+kpPlotDensity(kp, data=granges_cpg, col=colors[3], window.size=1e6, r0 = plot_ranges[[3]][1], r1 = plot_ranges[[3]][2])
+  
+
+legend("topright", legend = group_labels, fill = colors, title = "CpG Groups", cex = 0.8, bty = "n")
+dev.off()
+```
+
+
+```{r}
+# ann2 <- read.table("EPIC.hg38.manifest.tsv", sep="\t", header=TRUE, quote="", comment.char="", fileEncoding = "UTF-8")
+# ann <- read.table("HM450.hg38.manifest.tsv", sep="\t", header=TRUE, quote="", comment.char="", fileEncoding = "UTF-8")
+# ann2 <- ann2[!is.na(ann2$CpG_chrm) & !is.na(ann2$CpG_beg) & !is.na(ann2$CpG_end), ]
+# ann <- ann[!is.na(ann$CpG_chrm) & !is.na(ann$CpG_beg) & !is.na(ann$CpG_end), ]
+# 
+# 
+# colors <- c("blue", "red", "green")  # Colors for each group
+# group_labels <- c("EPIC", "450K", "All CpGs")  # Labels for each group
+# 
+# kp <- plotKaryotype(genome = "hg38")
+# 
+# plot_ranges <- list(
+#   c(0.55, 0.95),  # Range for the first group
+#   c(0.35, 0.75) ,  # Range for the second group
+#   c(0.15, 0.55)
+# )
+# 
+# 
+# # Group 1: EPIC
+# granges_cpg <- GRanges(
+#   seqnames = ann2$CpG_chrm,  # Chromosome
+#   ranges = IRanges(start = ann2$CpG_beg, end = ann2$CpG_end),  # Base-pair position
+#   names = rownames(ann2)  # CpG identifiers
+# )
+# kpPlotDensity(kp, data = granges_cpg, col = colors[1], window.size = 1e6, r0 = plot_ranges[[1]][1], r1 = plot_ranges[[1]][2])
+# 
+# # Group 2: 450K
+# granges_cpg <- GRanges(
+#   seqnames = ann$CpG_chrm,  # Chromosome
+#   ranges = IRanges(start = ann$CpG_beg, end = ann$CpG_end),  # Base-pair position
+#   names = rownames(ann)  # CpG identifiers
+# )
+# kpPlotDensity(kp, data = granges_cpg, col = colors[2], window.size = 1e6, r0 = plot_ranges[[2]][1], r1 = plot_ranges[[2]][2])
+# 
+# # Group 3: All CpGs
+# #temp <- readr::read_csv("CPG_position.csv")
+# granges_cpg <- GRanges(
+#   seqnames = temp$chr,  # Chromosome
+#   ranges = IRanges(start = temp$start, end = temp$start)#,  # Base-pair position
+#   #names = rownames(temp)  # CpG identifiers
+# )
+# kpPlotDensity(kp, data = granges_cpg, col = colors[3], window.size = 1e6, r0 = plot_ranges[[3]][1], r1 = plot_ranges[[3]][2])
+# 
+# legend("topright", legend = group_labels, fill = colors, title = "CpG Groups", cex = 0.8, bty = "n")
+```
+
+
+```{r}
+
+
+#temp <- ann[ann$probeID %in% all_aaCpGs, ]
+#temp <- temp[!is.na(temp$CpG_chrm) & !is.na(temp$CpG_beg) & !is.na(temp$CpG_end), ]
+
+
+
+# selectedSitesGranges <- GRanges(
+#   seqnames = temp$CpG_chrm,
+#   ranges = IRanges(start = temp$CpG_beg, end=temp$CpG_end),
+#   names = temp$probeID
+# )
+# selectedSitesGranges$type <- "selectCpG"
+
+ann <- read.table("HM450.hg38.manifest.tsv", sep="\t", header=TRUE, quote="", comment.char="", fileEncoding = "UTF-8")
+ann <- ann[!is.na(ann$CpG_chrm) & !is.na(ann$CpG_beg) & !is.na(ann$CpG_end), ]
+rownames(ann) <- ann$probeID
+
+
+sitesToPlot <- GRanges(
+  seqnames = ann$CpG_chrm,  # Chromosome
+  ranges = IRanges(start = ann$CpG_beg, end = ann$CpG_end),  # Base-pair position
+  names = ann$probeID  # CpG identifiers
+)
+# Make a copy for second test
+sitesToPlot2 <- sitesToPlot
+sitesToPlot$type <- ifelse(sitesToPlot$names %notin% all_aaCpGs, "450K CpGs", "Selected CpGs")
+sitesToPlot2$type <- ifelse(sitesToPlot$names %notin% rownames(four_cluster_select), "450K CpGs", 
+                            ifelse(sitesToPlot$names %in% earlycpgs, "Young aaCpGs", "Old aaCpGs"))
+
+#builtin_genomes()
+#buildin_annotations()
+#tempannlist <- builtin_annotations()
+#tempannlist <- tempannlist[1]["hg38" %in% tempannlist]
+annots = c('hg38_genes_1to5kb', 'hg38_genes_promoters', 'hg38_genes_cds',
+    'hg38_genes_5UTRs', 'hg38_genes_introns',
+    'hg38_genes_3UTRs', 'hg38_genes_intergenic', 'hg38_basicgenes')
+
+# Build the annotations (a single GRanges object)
+annotations = build_annotations(genome = 'hg38', annotations = annots)
+
+# Intersect the regions we read in with the annotations
+dm_annotated = annotate_regions(
+    regions = sitesToPlot,
+    annotations = annotations,
+    ignore.strand = TRUE,
+    quiet = FALSE)
+
+png(filename="figs/barplot_distributions.png", width=12, height=6, units="in", res=300)
+tempPlot = plot_categorical(
+    annotated_regions = dm_annotated, x='type', fill='annot.type',
+    position='fill',
+    plot_title = ' ',
+    legend_title = 'Annotations',
+    x_label = ' ',
+    y_label = 'Proportion')
+print(tempPlot)
+dev.off()
+
+# dm_annotated = annotate_regions(
+#     regions = sitesToPlot2,
+#     annotations = annotations,
+#     ignore.strand = TRUE,
+#     quiet = FALSE)
+
+
+all_aaCpGs <- readRDS("all_sig_sites.rds")
+male_aaCpGs <- readRDS("male_sig_sites.rds")
+female_aaCpGs <- readRDS("female_sig_sites.rds")
+M28 <- read.csv("CPG_position.csv")
+M28$end <- M28$start + 2
+K450 <- ann[, 1:3]
+colnames(K450) <- c("chr", "start", "end")
+selected <- K450[rownames(K450) %in% all_aaCpGs, ]
+maleSelected <- K450[rownames(K450) %in% male_aaCpGs, ]
+femaleSelected <- K450[rownames(K450) %in% female_aaCpGs, ]
+
+
+lgd_points = Legend(at = c("450K CpGs"), type = "points", 
+    legend_gp = gpar(col = "blue"), title_position = "topleft", 
+    title = " ")
+lgd_points2 = Legend(at = c("Selected aaCpGs"), type = "points", 
+    legend_gp = gpar(col = "red"), title_position = "topleft", 
+    title = " ")
+lgd_points3 = Legend(at = c("Male aaCpGs"), type = "points", 
+    legend_gp = gpar(col = "green"), title_position = "topleft", 
+    title = " ")
+lgd_points4 = Legend(at = c("Female aaCpGs"), type = "points", 
+    legend_gp = gpar(col = "purple"), title_position = "topleft", 
+    title = " ")
+lgd_list_vertical = packLegend(lgd_points, lgd_points2, lgd_points3, lgd_points4)
+
+png("figs/genomic_distribution.png", width = 8, height=6, units="in", res=300)
+plot.new()
+circle_size = unit(1, "snpc")
+pushViewport(viewport(x = 0, y = 0.5, width = circle_size, height = circle_size,
+    just = c("left", "center")))
+par(omi = gridOMI(), new = TRUE)
+circos.initializeWithIdeogram(chromosome.index = paste0("chr", 1:22), species="hg38")
+        #circos.genomicDensity(M28, col = c("#FF000080"), track.height = 0.1)
+circos.genomicDensity(M28, col=c("blue"), track.height=0.1)
+circos.genomicDensity(selected, col=c("red"), track.height=0.1)
+circos.genomicDensity(maleSelected, col=c("green"), track.height=0.1)
+circos.genomicDensity(femaleSelected, col=c("purple"), track.height=0.1)
+
+upViewport()
+draw(lgd_list_vertical, x = circle_size, just = "left")
+dev.off()
+```
+
+
+

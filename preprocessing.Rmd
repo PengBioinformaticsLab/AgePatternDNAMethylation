@@ -1,0 +1,616 @@
+---
+title: "Pre-Processing"
+output: html_notebook
+---
+
+```{r}
+# load any extra packages needed here
+# packages loaded concordantly in HelperFunctions.Rmd
+```
+
+```{r}
+# Read standard CpG site list to be used (not until matrix has been generated then filtered)
+ann <- read.table("HM450.hg38.manifest.tsv", sep="\t", header=TRUE, quote="", comment.char="", fileEncoding = "UTF-8")
+standard_cpg_list <- ann$probeID
+```
+
+
+- One by one -> keep track in notebook
+
+Start from scratch (datasets directly from OneDrive) 
+- M to beta conversion ✔️
+- bounding checks ✔️
+- 850K to 450K platform conversion problems ✔️
+
+   - Generate histograms of age distribution + distribution across datasets (colored + patterned)
+   - generate bar plot of unique CpG distribution across datasets
+
+- save in standardized format given by https://bio-learn.github.io/methylation-standard.html will load correctly. (slightly modified w/ row and column names)
+ - format as csv
+ - each row has same number of entries
+ - row corresponds to measurements to a CpG site, with rownames as CpG ID
+ - rownames is in standard cpg order
+ - colNames has sample ID
+ * no more than 1000 samples if wanted to be used with biolearn package
+ - metadata must have 0 for female, 1 for male
+ - column names: sample_id, age, gender, type, tissue, disease state (may need placeholder columns if datasets do not contain them)
+
+- Made the choice to individually go through each dataset instead of writing a pipeline function to ensure that nuances do not slip through
+
+```{r}
+# 3 things to check after each dataset has been processed: metadata_tracker, running_site_list, and valid_samples
+age_range <- 0:100
+metadata_tracker <- data.frame(matrix(0, nrow=length(age_range), ncol=0))
+rownames(metadata_tracker) <- paste0("age", age_range)
+running_site_list <- data.frame(Count = rep(0, length(standard_cpg_list)))
+rownames(running_site_list) <- standard_cpg_list
+
+valid_samples <- list()
+
+# GSE32148
+# ------------------
+
+file_path <- "original_datasets/oGSE32148_beta.xlsx"
+file_path2 <- "original_datasets/oGSE32148_md.xlsx"
+
+temp_beta <- xlsx_helper(file_path)
+temp_md <- xlsx_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE32148")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+# save processed data
+#write.csv(new_dataset, "pp_datasets/GSE32148_pp.csv") # work-around to preserve rownames, when read using fread, rownames become the first column
+
+# GSE36054
+# ------------------
+
+file_path <- "original_datasets/oGSE36054_beta.xlsx"
+file_path2 <- "original_datasets/oGSE36054_md.xlsx"
+
+temp_beta <- xlsx_helper(file_path)
+temp_md <- xlsx_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE36054")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+#write.csv(new_dataset, "pp_datasets/GSE36054_pp.csv")
+
+# GSE40279
+# ------------------
+
+file_path <- "original_datasets/oGSE40279_beta.csv"
+file_path2 <- "original_datasets/oGSE40279_md.csv"
+
+temp_beta <- csv_helper(file_path)
+temp_md <- csv_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE40279")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+#write.csv(new_dataset, "pp_datasets/GSE40279_pp.csv")
+
+# GSE50660
+# ------------------
+
+file_path <- "original_datasets/oGSE50660_beta.csv"
+file_path2 <- "original_datasets/oGSE50660_md.csv"
+
+temp_beta <- csv_helper(file_path)
+temp_md <- csv_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE50660")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+#write.csv(new_dataset, "pp_datasets/GSE50660_pp.csv")
+
+# GSE50759
+# ------------------
+
+file_path <- "original_datasets/oGSE50759_beta.xlsx"
+file_path2 <- "original_datasets/oGSE50759_md.xlsx"
+
+temp_beta <- xlsx_helper(file_path)
+temp_md <- xlsx_helper(file_path2)
+colnames(temp_md) <- c("sample_id", "age", "gender", "type")
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+temp_beta <- m_to_b(temp_beta)
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE50759")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+#write.csv(new_dataset, "pp_datasets/GSE50759_pp.csv")
+
+# GSE51057
+# ------------------
+
+file_path <- "original_datasets/oGSE51057_beta.csv"
+file_path2 <- "original_datasets/oGSE51057_md.csv"
+
+temp_beta <- csv_helper(file_path)
+temp_md <- csv_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE51057")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+#write.csv(new_dataset, "pp_datasets/GSE51057_pp.csv")
+
+# GSE53740
+# ------------------
+
+file_path <- "original_datasets/oGSE53740_beta.csv"
+file_path2 <- "original_datasets/oGSE53740_md.csv"
+
+temp_beta <- csv_helper(file_path)
+temp_md <- csv_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE53740")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+#write.csv(new_dataset, "pp_datasets/GSE53740_pp.csv")
+
+# GSE61256
+# ------------------
+
+file_path <- "original_datasets/oGSE61256_beta.csv"
+file_path2 <- "original_datasets/oGSE61256_md.csv"
+
+temp_beta <- csv_helper(file_path)
+temp_md <- csv_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE61256")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+#write.csv(new_dataset, "pp_datasets/GSE61256_pp.csv")
+
+# GSE67705
+# ------------------
+
+file_path <- "original_datasets/oGSE67705_beta.csv"
+file_path2 <- "original_datasets/oGSE67705_md.csv"
+
+temp_beta <- csv_helper(file_path)
+temp_md <- csv_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE67705")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+#write.csv(new_dataset, "pp_datasets/GSE67705_pp.csv")
+
+# GSE73103
+# ------------------
+
+file_path <- "original_datasets/oGSE73103_beta.csv"
+file_path2 <- "original_datasets/oGSE73103_md.csv"
+
+temp_beta <- csv_helper(file_path)
+temp_md <- csv_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE73103")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+#write.csv(new_dataset, "pp_datasets/GSE73103_pp.csv")
+
+# GSE80261
+# ------------------
+
+file_path <- "original_datasets/oGSE80261_beta.xlsx"
+file_path2 <- "original_datasets/oGSE80261_md.xlsx"
+
+temp_beta <- xlsx_helper(file_path)
+temp_md <- xlsx_helper(file_path2)
+colnames(temp_md)[1] <- "sample_id"
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE80261")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+#write.csv(new_dataset, "pp_datasets/GSE80261_pp.csv")
+
+# GSE85568
+# ------------------
+
+file_path <- "original_datasets/oGSE85568_beta.csv"
+file_path2 <- "original_datasets/oGSE85568_md.csv"
+
+temp_beta <- csv_helper(file_path)
+temp_md <- csv_helper(file_path2)
+colnames(temp_md)[1] <- "sample_id"
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+temp_beta <- limit_bounds(temp_beta)
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE85568")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+#write.csv(new_dataset, "pp_datasets/GSE85568_pp.csv")
+
+# GSE89253
+# ------------------
+
+file_path <- "original_datasets/oGSE89253_beta.csv"
+file_path2 <- "original_datasets/oGSE89253_md.csv"
+
+temp_beta <- csv_helper(file_path)
+temp_md <- csv_helper(file_path2)
+colnames(temp_md)[1] <- "sample_id"
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+temp_beta <- m_to_b(temp_beta)
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE89253")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+#write.csv(new_dataset, "pp_datasets/GSE89253_pp.csv")
+
+# GSE90124
+# ------------------
+
+file_path <- "original_datasets/oGSE90124_beta.csv"
+file_path2 <- "original_datasets/oGSE90124_md.csv"
+
+temp_beta <- csv_helper(file_path)
+temp_md <- csv_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE90124")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+#write.csv(new_dataset, "pp_datasets/GSE90124_pp.csv")
+
+# GSE94734
+# ------------------
+
+file_path <- "original_datasets/oGSE94734_beta.xlsx"
+file_path2 <- "original_datasets/oGSE94734_md.xlsx"
+
+temp_beta <- xlsx_helper(file_path)
+temp_md <- xlsx_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE94734")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+#write.csv(new_dataset, "pp_datasets/GSE94734_pp.csv")
+
+# GSE106648
+# ------------------
+
+file_path <- "original_datasets/oGSE106648_beta.csv"
+file_path2 <- "original_datasets/oGSE106648_md.csv"
+
+temp_beta <- csv_helper(file_path)
+temp_md <- csv_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE106648")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+#write.csv(new_dataset, "pp_datasets/GSE106648_pp.csv")
+
+# GSE114134
+# ------------------
+
+file_path <- "original_datasets/oGSE114134_beta.csv"
+file_path2 <- "original_datasets/oGSE114134_md.csv"
+
+temp_beta <- csv_helper(file_path)
+temp_md <- csv_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+temp_beta <- liftover(temp_beta)
+
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE114134")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+#write.csv(new_dataset, "pp_datasets/GSE114134_pp.csv")
+
+# GSE124076
+
+# GSE124366
+
+# GSE137495
+
+# GSE138279
+```
+
+Generate age distribution and cpg distribution figures
+
+```{r}
+# from last chunk: metadata_tracker & running_site_list
+
+library(RColorBrewer)
+library(ggplot2)
+
+coul <- colorRampPalette(brewer.pal(8, "Set3"))(20)
+
+data_percentage <- apply(metadata_tracker, 1, function(x) {x*100/sum(x, na.rm=T)})
+
+barplot(data_percentage, col=coul, border="white", xlab=NULL, axisnames=FALSE)
+
+site_counts <- readRDS("7_21_site_counts.csv")
+site_counts <- as.data.frame(site_counts)
+clock_sites <- read.csv("7_3_overlap.csv")[, 2]
+# Subset to clock CpGs
+subset_site_counts <- site_counts[site_counts[, 1] %in% clock_sites, ]
+
+thresholds <- seq(22, 1, by = -1)
+
+# visualize using bar chart the number of sites present in at least 22 datasets, 21 datasets, 20 datasets
+to_plot <- sapply(thresholds, function(t) sum(site_counts[, 2]>=t))
+to_plot <- data.frame(`CpG Count` = to_plot, Threshold = thresholds)
+
+# Plot
+ggbarplot(to_plot, x="Threshold", y="CpG.Count", fill="#4682B4", 
+          title="All 450K CpGs Present Across Datasets") +
+  theme_and_axis_nolegend
+#ggsave("figs/cpgpresencebarplot.png", plot=last_plot(), dpi=900, width=10, height=6)
+
+all_cutoff <- 17
+temp_sites <- site_counts[site_counts[, 2]>=all_cutoff, 1]
+temp_sites <- as.character(temp_sites)
+#saveRDS(temp_sites, "7_23_all_sites.rds")
+
+#485577 sites total in 450K array
+
+to_plot2 <- sapply(thresholds, function(t) sum(subset_site_counts[, 2] >= t))
+to_plot2 <- data.frame(`CpG Count` = to_plot2, Threshold = thresholds)
+
+ggbarplot(to_plot2, x="Threshold", y="CpG.Count", fill="#4682B4",
+          title="Clock CpGs Present Across Datasets") +
+  theme_and_axis_nolegend
+#ggsave("figs/clockcpgpresencebarplot.png", plot=last_plot(), dpi=900, width=10, height=6)
+
+
+clock_cutoff <- 17
+temp_sites2 <- subset_site_counts[subset_site_counts[, 2]>=clock_cutoff, 1]
+temp_sites2 <- as.character(temp_sites2)
+```
+
+
+Make Splits
+
+```{r}
+
+```
+
+Make matrix from splits
+
+```{r}
+
+```
