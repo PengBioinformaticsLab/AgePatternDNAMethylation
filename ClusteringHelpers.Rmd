@@ -1,0 +1,231 @@
+---
+title: "ClusteringHelpers"
+output: html_notebook
+---
+
+
+Generate heatmaps + scatterplots of each cluster
+
+```{r}
+library(ComplexHeatmap)
+library(future)
+library(future.apply)
+library(dplyr)
+library(tidyr)
+library(tibble)
+library(ggpubr)
+
+# Linear interpolation helper function
+# Fill in NAs in each row
+interpolate_na <- function(row) {
+  na_indices <- which(is.na(row))
+  non_na_indices <- which(!is.na(row))
+  
+  if (length(na_indices)==0) {
+    return(row)
+  }
+  
+  interpolated_values <- approx(non_na_indices, row[non_na_indices], xout=na_indices, method="linear", rule=2)$y
+  row[na_indices] <- interpolated_values
+  
+  return(row)
+}
+
+# Set option
+ht_opt$fast_hclust = TRUE
+# Ensure reproducibility of row_km
+set.seed(123)
+
+# param num_clusters
+# param save: save to files or not
+# param clock: use clock CpGs or selected CpGs
+# param gender_state: "all", "male", or "female", will read the according matrices
+
+mainPipeline <- function(num_clusters, save=FALSE, clock=FALSE, gender_state="all") {
+  
+  Sys.setenv("OBJC_DISABLE_INITIALIZE_FORK_SAFETY" = "YES") # not sure what this is doing, taken off stack overflow
+  
+  # Read appropriate matrix
+  if (gender_state=="all") {
+    B <- fread("matrix/allTRUE.csv")
+    cpg_filter <- readRDS("all_select_cpg.rds")
+  } else if (gender_state=="male") {
+    B <- fread("matrix/maleTRUE.csv")
+    cpg_filter <- readRDS("male_select_cpg.rds")
+  } else if (gender_state=="female") {
+    B <- fread("matrix/femaleTRUE.csv")
+    cpg_filter <- readRDS("female_select_cpg.rds")
+  } else {
+    print("invalid gender state")
+    break
+  }
+  
+  # reset cpg_filter to just clock sites if clock=TRUE, if not, remove clock sites from analysis
+  clock_sites <- readRDS("clock_cpgs.rds")
+  cpg_filter <- cpg_filter[cpg_filter %notin% clock_sites]
+  if (clock==TRUE) {
+    cpg_filter <- clock_sites
+  }
+  
+  # reformatting
+  B <- as.data.frame(B)
+  rownames(B) <- B[, 1]
+  B <- B[, -1]
+  
+  # Filter
+  B <- B[rownames(B) %in% cpg_filter,]
+  
+  # Scale
+  B <- t(scale(t(B)))
+  B <- as.matrix(B)
+  colnames(B) <- gsub("age_", "", colnames(B))
+  #rownames(B) <- cpg_filter
+  
+  print(paste0("CpGs investigated: ", dim(B)[1]))
+  
+  # Fill in sparse NA values using linear interpolation
+  print(paste0("Total NA: ", (sum(is.na(B)) / (dim(B)[1] * dim(B)[2]) * 100), " percent"))
+  B <- t(apply(B, 1, interpolate_na))
+  
+  heatmap_width <- unit(8, "cm")
+  heatmap_height <- unit(10, "cm")
+  
+  cluster_labels <- seq_len(num_clusters)
+
+  row_anno <- rowAnnotation(foo = anno_block(gp = gpar(col="black", fill=NA),
+        labels = cluster_labels, 
+        labels_gp = gpar(col = "black", fontsize = 7)),
+        width = unit(4, "mm"))
+  
+  # save colnames to reassign for later
+  temp_colnames <- colnames(B)
+  # set new colnames for easier visualization
+  colnames(B) <- c("0", rep("", 19), "20", rep("", 19), "40", rep("", 19), "60", rep("", 19), "80")
+  
+  
+  if (clock == TRUE) {
+      # Create the heatmap with annotation
+      ht <- Heatmap(B, name = " ", 
+          row_km = num_clusters,
+          row_km_repeats = 10,  # Different start points for kmeans clustering
+          show_row_names = FALSE,
+          cluster_columns = FALSE,
+          row_title = "Clock CpGs", 
+          column_title = "Ages",
+          column_title_side = "bottom",
+          column_names_gp = gpar(fontsize = 8, fontfamily = "Helvetica"),
+          column_names_rot = 0,
+          row_names_gp = gpar(fontsize = 4, fontface = "bold", fontfamily = "Helvetica"),
+          column_title_gp = gpar(fontsize = 10, fontface = "bold", fontfamily="Helvetica"),
+          row_title_gp = gpar(fontsize = 10, fontface = "bold", fontfamily="Helvetica"),
+          right_annotation = ha,
+          width = heatmap_width,   
+          height = heatmap_height,
+          left_annotation = row_anno) 
+  } else {
+      ht <- Heatmap(B, name = " ", 
+          row_km = num_clusters,
+          row_km_repeats = 10,  # Different start points for kmeans clustering
+          show_row_names = FALSE,
+          cluster_columns = FALSE,
+          row_title = "Selected CpGs", 
+          column_title = "Ages",
+          column_title_side = "bottom",
+          column_names_gp = gpar(fontsize = 8, fontfamily = "Helvetica"),
+          column_names_rot = 0,
+          row_names_gp = gpar(fontsize = 4, fontface = "bold", fontfamily = "Helvetica"),
+          column_title_gp = gpar(fontsize = 10, fontface = "bold", fontfamily="Helvetica"),
+          row_title_gp = gpar(fontsize = 10, fontface = "bold", fontfamily="Helvetica"),
+          width = heatmap_width,   
+          height = heatmap_height,
+          left_annotation = row_anno) 
+  }
+  
+  if (save) {
+    # need to fix
+    png(paste0(gender_state, clock, num_clusters, "heatmap.png"), width = 2400, height = 2400, units="px", res=300)
+  }
+  
+  # Draw the heatmap
+  ht <- draw(ht)
+  
+  if (save) {
+      dev.off()
+  }
+  
+  # reassign column names
+  colnames(B) <- temp_colnames
+
+  cluster_assignments <- row_order(ht)
+  cluster_vector <- unlist(lapply(1:length(cluster_assignments), function(i) {
+    rep(i, length(cluster_assignments[[i]]))
+  }))
+  # Assign cluster indices to rows
+  B_with_clusters <- cbind(B, Cluster=cluster_vector[order(unlist(cluster_assignments))])
+  B_with_clusters <- as.data.frame(B_with_clusters)
+  
+  future_lapply(1:num_clusters, function(j) {
+    plot_cluster(j, B_with_clusters, save, gender_state, clock, num_clusters)
+  })
+  
+  # Below code is without parallelization
+  
+  # for (j in 1:num_clusters) {
+  #   df <- B_with_clusters[which(B_with_clusters$Cluster==j),]
+  #   df <- df[, -ncol(df)]
+  #   long_df <- df %>%
+  #     rownames_to_column(var="Sample") %>%
+  #     pivot_longer(cols=-c("Sample"), names_to="Age", values_to="Beta") %>%
+  #     mutate(Age=as.numeric(Age))
+  #   long_df <- na.omit(long_df)
+  # 
+  #   #fit <- lm(Beta ~ bs(Age, df=5), data=long_df)
+  #   #long_df$Fitted <- predict(fit)
+  #   
+  #   a <- ggscatter(long_df, x="Age", y="Beta", size=1, title=paste("Cluster", j),
+  #             xlab = "Age", ylab = "Scaled Beta Values", color="lightgray") +
+  #     #geom_line(aes(y=Fitted), color="blue") +
+  #     geom_smooth(method = "loess", color = "blue", fill = "lightblue", se = FALSE) +
+  #     #geom_smooth(method = "gam", formula = y ~ s(x, bs = "ps"), 
+  #                #color = "blue", fill = "lightblue", se = FALSE) +
+  #     ylim(-5, 5) + 
+  #     theme(plot.title = element_text(hjust = 0.5))
+  #   print(a)
+  #   if (save==TRUE) {
+  #     ggsave(filename=paste0(gender_state, clock, num_clusters, "Cluster_", j, ".png"), plot=a, dpi=300)
+  #   }
+  # }
+  return(B_with_clusters)
+}
+
+# Code to plot single cluster (is parallelized using future_lapply within mainPipeline)
+plot_cluster <- function(j, B_with_clusters, save, gender_state, clock, num_clusters) {
+    df <- B_with_clusters[which(B_with_clusters$Cluster == j), ]
+    df <- df[, -ncol(df)]
+    long_df <- df %>%
+      rownames_to_column(var = "Sample") %>%
+      pivot_longer(cols = -c("Sample"), names_to = "Age", values_to = "Beta") %>%
+      mutate(Age = as.numeric(Age))
+    long_df <- na.omit(long_df)
+    #long_df <- long_df[!(long_df$Age==0), ]
+    median_df <- long_df %>%
+      group_by(Age) %>%
+      summarise(Median_Beta = median(Beta))
+    
+    #loess_df <- long_df[!(long_df$Age==0), ]
+
+    print("plotting now")
+    a <- ggscatter(long_df, x = "Age", y = "Beta", size = 1, title = paste("Cluster", j),
+                   xlab = "Age", ylab = " ", color = "lightgray") +
+      #geom_smooth(data = loess_df, method = "loess", color = "blue", fill = "lightblue", se = FALSE) +
+      ylim(-5, 5) +
+      geom_point(data = median_df, aes(x = Age, y = Median_Beta), color = "blue", size = 2) 
+    
+    if (save) {
+        ggsave(filename = paste0("figs2/", gender_state, clock, num_clusters, "nsCluster_", j, ".png"), plot = a, height=6, width=10, dpi = 900)
+    }
+    
+    print(a)
+    return(a)
+}
+```

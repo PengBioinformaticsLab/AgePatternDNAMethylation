@@ -1,0 +1,55 @@
+---
+title: "Filter"
+output: html_notebook
+---
+
+
+```{r}
+
+
+all_results <- extractResults("matrix/allTRUE.csv", "matrix/allFALSE.csv")
+male_results <- extractResults("matrix/maleTRUE.csv", "matrix/maleFALSE.csv")
+female_results <- extractResults("matrix/femaleTRUE.csv", "matrix/femaleFALSE.csv")
+
+all_sig_counts <- extract_sites(all_results, 1, 0.6, 0.25, 2)
+male_sig_counts <- extract_sites(male_results, 2, 0.6, 0.25, 2)
+female_sig_counts <- extract_sites(female_results, 3, 0.6, 0.25, 2)
+
+all_list <- convert_to_list_format(all_sig_counts)
+male_list <- convert_to_list_format(male_sig_counts)
+female_list <- convert_to_list_format(female_sig_counts)
+
+```
+
+Print lists to console and total unique CpGs selected
+
+```{r}
+all_cpg <- character()
+for (i in 1:length(all_list)) {
+  print(paste0("All, Age window: ", names(all_list)[i], " # CpGs: ", length(all_list[[i]])))
+  all_cpg <- append(all_cpg, all_list[[i]])
+}
+all_cpg <- unique(all_cpg)
+print(length(all_cpg))
+
+male_cpg <- character()
+for (i in 1:length(male_list)) {
+  print(paste0("Male, Age window: ", names(male_list)[i], " # CpGs: ", length(male_list[[i]])))
+  male_cpg <- append(male_cpg, male_list[[i]])
+}
+male_cpg <- unique(male_cpg)
+print(length(male_cpg))
+
+female_cpg <- character()
+for (i in 1:length(female_list)) {
+  print(paste0("Female, Age window: ", names(female_list)[i], " # CpGs: ", length(female_list[[i]])))
+  female_cpg <- append(female_cpg, female_list[[i]])
+}
+female_cpg <- unique(female_cpg)
+print(length(female_cpg))
+
+saveRDS(all_cpg, "all_select_cpg.rds")
+saveRDS(male_cpg, "male_select_cpg.rds")
+saveRDS(female_cpg, "female_select_cpg.rds")
+```
+

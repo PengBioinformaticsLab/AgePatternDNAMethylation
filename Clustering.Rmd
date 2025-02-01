@@ -1,0 +1,42 @@
+---
+title: "Clustering
+output: html_notebook
+---
+
+
+
+```{r}
+clocks <- c("McEwen", "Wu", "Hannum", "Horvath", "Levine", "Belsky", "Teschendorff", "Shireby", "Lu")
+selected_clock_cpgs <- readRDS("clock_cpgs.rds")
+clock_annotations <- data.frame(matrix(ncol = length(clocks), nrow = length(selected_clock_cpgs)))
+names(clock_annotations) <- clocks
+rownames(clock_annotations) <- selected_clock_cpgs
+
+for (i in 1:dim(clock_annotations)[2]) {
+  clock_annotations[selected_clock_cpgs %in% clock_cpgs[[i]], i] <- 1
+}
+clock_annotations[is.na(clock_annotations)] <- 0
+
+ha = rowAnnotation(df = clock_annotations, col = list(
+    McEwen = c("0" = "gray", "1" = "purple"),
+    Wu = c("0" = "gray", "1" = "orange"),
+    Hannum = c("0" = "gray", "1" = "red"),
+    Horvath = c("0" = "gray", "1" = "blue"),
+    Levine = c("0" = "gray", "1" = "green"),
+    Belsky = c("0" = "gray", "1" = "yellow"),
+    Teschendorff = c("0" = "gray", "1" = "pink"),
+    Shireby = c("0" = "gray", "1" = "magenta"),
+    Lu = c("0" = "gray", "1" = "maroon")),
+    simple_anno_size = unit(3, "mm"),
+    show_legend=c(FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, FALSE),
+    annotation_name_gp = gpar(fontsize=10, fontfamily="Helvetica")
+)
+```
+
+```{r}
+# mainPipeline(4, TRUE, FALSE, "all")
+# mainPipeline(4, TRUE, TRUE, "all")
+# mainPipeline(4, TRUE, FALSE, "male")
+# mainPipeline(4, TRUE, FALSE, "female")
+```
+
