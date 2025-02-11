@@ -105,6 +105,7 @@ mainPipeline <- function(num_clusters, save=FALSE, clock=FALSE, gender_state="al
   
   if (clock == TRUE) {
       # Create the heatmap with annotation
+      print("doing clock heatmap")
       ht <- Heatmap(B, name = " ", 
           row_km = num_clusters,
           row_km_repeats = 10,  # Different start points for kmeans clustering
@@ -123,6 +124,7 @@ mainPipeline <- function(num_clusters, save=FALSE, clock=FALSE, gender_state="al
           height = heatmap_height,
           left_annotation = row_anno) 
   } else {
+      print("doing normal heatmap")
       ht <- Heatmap(B, name = " ", 
           row_km = num_clusters,
           row_km_repeats = 10,  # Different start points for kmeans clustering
@@ -143,7 +145,8 @@ mainPipeline <- function(num_clusters, save=FALSE, clock=FALSE, gender_state="al
   
   if (save) {
     # need to fix
-    png(paste0(gender_state, clock, num_clusters, "heatmap.png"), width = 2400, height = 2400, units="px", res=300)
+    print("saving")
+    png(paste0("new_figs/", gender_state, clock, num_clusters, "heatmap.png"), width = 2400, height = 2400, units="px", res=300)
   }
   
   # Draw the heatmap
@@ -222,10 +225,25 @@ plot_cluster <- function(j, B_with_clusters, save, gender_state, clock, num_clus
       geom_point(data = median_df, aes(x = Age, y = Median_Beta), color = "blue", size = 2) 
     
     if (save) {
-        ggsave(filename = paste0("figs2/", gender_state, clock, num_clusters, "nsCluster_", j, ".png"), plot = a, height=6, width=10, dpi = 900)
+        ggsave(filename = paste0("new_figs/", gender_state, clock, num_clusters, "nsCluster_", j, ".png"), plot = a, height=6, width=10, dpi = 900)
     }
     
     print(a)
     return(a)
 }
 ```
+
+```{r}
+# set uniform order for annotations
+
+temp_B <- fread("matrix/allTRUE.csv")
+clock_sites <- readRDS("clock_cpgs.rds")
+temp_B <- as.data.frame(temp_B)
+rownames(temp_B) <- temp_B[, 1]
+temp_B <- temp_B[, -1]
+
+# Filter
+temp_B <- temp_B[rownames(temp_B) %in% clock_sites,]
+saveRDS(rownames(temp_B), "correct_order.rds")
+```
+

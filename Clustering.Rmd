@@ -3,14 +3,15 @@ title: "Clustering
 output: html_notebook
 ---
 
-
-
 ```{r}
 clocks <- c("McEwen", "Wu", "Hannum", "Horvath", "Levine", "Belsky", "Teschendorff", "Shireby", "Lu")
 selected_clock_cpgs <- readRDS("clock_cpgs.rds")
 clock_annotations <- data.frame(matrix(ncol = length(clocks), nrow = length(selected_clock_cpgs)))
 names(clock_annotations) <- clocks
 rownames(clock_annotations) <- selected_clock_cpgs
+
+correct_order <- readRDS("correct_order.rds")
+clock_annotations <- clock_annotations[correct_order, ]
 
 for (i in 1:dim(clock_annotations)[2]) {
   clock_annotations[selected_clock_cpgs %in% clock_cpgs[[i]], i] <- 1
@@ -34,9 +35,11 @@ ha = rowAnnotation(df = clock_annotations, col = list(
 ```
 
 ```{r}
-# mainPipeline(4, TRUE, FALSE, "all")
-# mainPipeline(4, TRUE, TRUE, "all")
-# mainPipeline(4, TRUE, FALSE, "male")
-# mainPipeline(4, TRUE, FALSE, "female")
+# params: num_clusters, SAVE, CLOCK, gender
+
+non_all <- mainPipeline(4, TRUE, FALSE, "all")
+clock_all <- mainPipeline(4, TRUE, TRUE, "all")
+male_all <- mainPipeline(4, TRUE, FALSE, "male")
+female_all <- mainPipeline(4, TRUE, FALSE, "female")
 ```
 
