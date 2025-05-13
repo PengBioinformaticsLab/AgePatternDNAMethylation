@@ -1,0 +1,562 @@
+---
+title: "Filter"
+output: html_notebook
+---
+
+
+```{r}
+
+
+all_results <- extractResults("matrix/allTRUE.csv", "matrix/allFALSE.csv")
+male_results <- extractResults("matrix/maleTRUE.csv", "matrix/maleFALSE.csv")
+female_results <- extractResults("matrix/femaleTRUE.csv", "matrix/femaleFALSE.csv")
+
+all_sig_counts <- extract_sites(all_results, 1, 0.6, 0.25, 2)
+male_sig_counts <- extract_sites(male_results, 2, 0.6, 0.25, 2)
+female_sig_counts <- extract_sites(female_results, 3, 0.6, 0.25, 2)
+
+all_list <- convert_to_list_format(all_sig_counts)
+male_list <- convert_to_list_format(male_sig_counts)
+female_list <- convert_to_list_format(female_sig_counts)
+
+# saveRDS(all_list, "all_list.rds")
+# saveRDS(male_list, "male_list.rds")
+# saveRDS(female_list, "female_list.rds")
+
+#saveRDS(all_results, "all_results.rds")
+#saveRDS(male_results, "male_results.rds")
+#saveRDS(female_results, "female_results.rds")
+
+# run to get results without the extra filter
+
+#all_sig_counts <- extract_sites(all_results, 1, 0.6, 0.25, 2, FALSE)
+#male_sig_counts <- extract_sites(male_results, 2, 0.6, 0.25, 2, FALSE)
+#female_sig_counts <- extract_sites(female_results, 3, 0.6, 0.25, 2, FALSE)
+
+#all_list <- convert_to_list_format(all_sig_counts)
+#male_list <- convert_to_list_format(male_sig_counts)
+#female_list <- convert_to_list_format(female_sig_counts)
+
+
+```
+
+```{r}
+library(gridExtra)
+library(ggpubr)
+library(grid)
+library(ggplot2)
+# new figure -> 3 rows, 13 columns
+
+# what do we want? input all_results, male_results, female_results, output a figure with 3 rows and 13 columns, 
+# each column showing corr_coeff for the window on the x-axis and abs beta change on the y-axis
+# highlight clock cpgs NOT selected
+
+# load all results
+all_results <- readRDS("all_results.rds")
+male_results <- readRDS("male_results.rds")
+female_results <- readRDS("female_results.rds")
+
+all_list <- readRDS("all_list.rds")
+male_list <- readRDS("male_list.rds")
+female_list <- readRDS("female_list.rds")
+
+clock_cpgs <- readRDS("clock_cpgs.rds")
+
+age_windows <- names(all_list)
+n_winds <- length(age_windows)
+
+make_scatter <- function(res_df, sel_vec, window_label, clock_cpgs) {
+  corr_col <- paste0(window_label, "-corr_res")
+  abs_col  <- paste0(window_label, "-abs_res")
+  df <- data.frame(
+    corr = res_df[[corr_col]],
+    abs  = res_df[[abs_col]],
+    id   = rownames(res_df),
+    stringsAsFactors = FALSE
+  )
+
+  
+  df$highlight <- ifelse(df$id %in% sel_vec, "aaCpGs",
+                   ifelse(df$id %in% clock_cpgs, "Clock CpGs", "Normal CpGs"))
+  df$highlight <- factor(df$highlight, levels = c("Normal CpGs","aaCpGs","Clock CpGs"))
+
+  df <- df[order(df$highlight), ]
+  
+  a <- ggscatter(df,
+            x       = "corr",
+            y       = "abs",
+            color  = "highlight",
+            palette = c("aaCpGs"   = "red",
+                        "Clock CpGs" = "blue",
+                        "Normal CpGs"      = "grey"),
+            alpha   = 0.4,
+            add     = "none",
+            shape   = 16
+  ) +
+    scale_size_manual(values = c(
+    "aaCpGs"   = 1,
+    "Clock CpGs" = 1.5,
+    "Normal CpGs"      = 0.3
+  ), guide = FALSE) + 
+    labs(title = window_label,
+         x     = " ",
+         y     = " ",
+         color = "Group") +
+    theme_and_axis_legend
+  return(a)
+}
+
+
+plots_all    <- vector("list", n_winds)
+plots_male   <- vector("list", n_winds)
+plots_female <- vector("list", n_winds)
+
+for (i in seq_along(age_windows)) {
+  w <- age_windows[i]
+  plots_all[[i]]    <- make_scatter(all_results,    all_list[[w]],    w, clock_cpgs)
+  plots_male[[i]]   <- make_scatter(male_results,   male_list[[w]],   w, clock_cpgs)
+  plots_female[[i]] <- make_scatter(female_results, female_list[[w]], w, clock_cpgs)
+}
+
+arranged_all <- ggarrange(plotlist = plots_all,
+                          common.legend=TRUE,
+                          legend = "top",
+                          ylab = " ",
+                          xlab = " ",
+                          ncol = 1)
+arranged_male <- ggarrange(plotlist = plots_male,
+                          common.legend=TRUE,
+                          legend = "top",
+                          ylab = " ",
+                          xlab = " ",
+                          ncol = 1)
+arranged_female <- ggarrange(plotlist = plots_female,
+                          common.legend=TRUE,
+                          legend = "top",
+                          ylab = " ",
+                          xlab = " ",
+                          ncol = 1)
+
+all_plot <- plot_grid(arranged_all, arranged_male, arranged_female, ncol=3, labels="AUTO")
+
+# can't seem to combine these???
+# another problem: blue dots seem to disappear when combining all 3 columns... idk
+
+
+# extra annotation needed on final figure
+row_labels <- grobTree(
+  textGrob("All",    x = unit(0.22,   "npc"), y = unit(0.5, "npc"),
+           rot = 0, gp = gpar(fontsize=12, fontface="bold")),
+  textGrob("Male",   x = unit(0.55,   "npc"), y = unit(0.5, "npc"),
+           rot = 0, gp = gpar(fontsize=12, fontface="bold")),
+  textGrob("Female", x = unit(0.88,   "npc"), y = unit(0.5, "npc"),
+           rot = 0, gp = gpar(fontsize=12, fontface="bold"))
+)
+
+combined <- as_ggplot(arrangeGrob(row_labels, all_plot,
+                        nrow   = 2,
+                        heights = c(1, 40)))
+
+
+# will need manual conversion to pdf
+ggsave("new_figs/supp_fig5.png",
+       plot=combined,
+       width=8,
+       height=30,
+       dpi=300)
+
+
+```
+
+
+Print lists to console and total unique CpGs selected
+
+```{r}
+all_cpg <- character()
+for (i in 1:length(all_list)) {
+  print(paste0("All, Age window: ", names(all_list)[i], " # CpGs: ", length(all_list[[i]])))
+  all_cpg <- append(all_cpg, all_list[[i]])
+}
+all_cpg <- unique(all_cpg)
+print(length(all_cpg))
+
+male_cpg <- character()
+for (i in 1:length(male_list)) {
+  print(paste0("Male, Age window: ", names(male_list)[i], " # CpGs: ", length(male_list[[i]])))
+  male_cpg <- append(male_cpg, male_list[[i]])
+}
+male_cpg <- unique(male_cpg)
+print(length(male_cpg))
+
+female_cpg <- character()
+for (i in 1:length(female_list)) {
+  print(paste0("Female, Age window: ", names(female_list)[i], " # CpGs: ", length(female_list[[i]])))
+  female_cpg <- append(female_cpg, female_list[[i]])
+}
+female_cpg <- unique(female_cpg)
+print(length(female_cpg))
+
+# saveRDS(all_cpg, "all_select_cpg.rds")
+# saveRDS(male_cpg, "male_select_cpg.rds")
+# saveRDS(female_cpg, "female_select_cpg.rds")
+```
+
+Generate visualized filter
+
+```{r}
+# 3A UpSet plot for aaCpG between each age window
+
+m2 <- make_comb_mat(all_list, mode = "intersect")
+p1 <- grid.grabExpr({
+  grid.newpage()  # start a fresh page
+  draw(UpSet(m2, set_order = rownames(m2)))
+})
+
+all_cpg   <- readRDS("all_select_cpg.rds")
+male_cpg  <- readRDS("male_select_cpg.rds")
+female_cpg<- readRDS("female_select_cpg.rds")
+clock_cpg <- readRDS("clock_cpgs.rds")
+
+upset2list <- list("All aaCpGs"    = all_cpg, 
+                   "Male aaCpGs"   = male_cpg,
+                   "Female aaCpGs" = female_cpg,
+                   "Clock CpGs"    = clock_cpg)
+
+m1 <- make_comb_mat(upset2list, mode = "intersect")
+p2 <- grid.grabExpr({
+  grid.newpage()
+  draw(UpSet(m1, set_order = rownames(m1)))
+})
+
+combined_plot <- plot_grid(p1, p2, ncol = 2, labels="AUTO")
+print(combined_plot)
+
+ggsave("new_figs/upsets.pdf", device = cairo_pdf, plot = combined_plot, width = 16, height = 4, dpi = 300)
+
+
+# 3C scatterplots
+window_columns <- grep("corr_res", colnames(all_results), value = TRUE)
+plot_list <- list()
+for (window in window_columns) {
+  un <- union(male_list[[gsub("-corr_res", "", window)]], female_list[[gsub("-corr_res", "", window)]]) 
+  overlap <- intersect(male_list[[gsub("-corr_res", "", window)]], female_list[[gsub("-corr_res", "", window)]])
+  male_list_unique <- setdiff(male_list[[gsub("-corr_res", "", window)]], female_list[[gsub("-corr_res", "", window)]]) 
+  female_list_unique <- setdiff(female_list[[gsub("-corr_res", "", window)]], male_list[[gsub("-corr_res", "", window)]])
+  
+  temp2 <- male_results[un, c(window), drop=FALSE]
+  temp3 <- female_results[un, c(window), drop=FALSE]
+  
+  to_plot <- cbind(temp2, temp3)
+  colnames(to_plot) <- c("male", "female")
+  to_plot <- as.data.frame(to_plot)
+  
+  to_plot$Group <- ifelse(rownames(to_plot) %in% overlap, "Overlap",
+                          ifelse(rownames(to_plot) %in% male_list_unique, "Male Unique", "Female Unique"))
+  
+  # Reorder factor levels for consistent coloring
+  to_plot$Group <- factor(to_plot$Group, levels = c("Male Unique", "Overlap", "Female Unique"))
+  
+  # Create the scatter plot for the current window
+  p <- ggscatter(to_plot, "male", "female", size=0.1, color="Group", alpha = 0.5) +
+    geom_abline(slope = 1, intercept = 0, color="red") +  # Add reference line
+    labs(
+    title = paste("[", gsub("-corr_res", "", window), "]"),
+      x = "Male",
+      y = "Female"
+    ) +
+    theme_and_axis_nolegend +
+    ylim(-1, 1) +
+    xlim(-1, 1) +
+    scale_color_manual(values = c("Male Unique" = "#ADD8E6", "Overlap" = "black", "Female Unique" = "#FFB6C1")) +
+    theme(
+      panel.border = element_rect(color = "black", fill = NA, size = 1), # Adds all four borders
+      axis.line = element_blank()  # Remove default axis lines
+    ) +
+    guides(
+      color = guide_legend(override.aes = list(size = 6))
+    ) +
+    coord_fixed()
+  print(p)
+  plot_list[[length(plot_list) + 1]] <- p
+}
+
+arrangedPlots <- ggarrange(plotlist = plot_list, ncol=5, nrow=3, common.legend = TRUE, legend="top")
+arrangedPlots <- plot_grid(arrangedPlots, labels="C")
+
+all_plot <- plot_grid(combined_plot, arrangedPlots, nrow=2, rel_widths=c(1, 1), rel_heights=c(1.7, 4))
+print(all_plot)
+ggsave("new_figs/fig3.pdf", device=cairo_pdf, plot=last_plot(), width=14, height=12, dpi=300)
+```
+
+Calc overlap
+
+```{r}
+# supp fig 3 here
+library(ComplexHeatmap)
+library(cowplot)
+
+#all_list
+#male_list
+#female_list
+
+all_list <- readRDS("all_list.rds")
+male_list <- readRDS("male_list.rds")
+female_list <- readRDS("female_list.rds")
+
+m_up <- make_comb_mat(male_list, mode="intersect")
+male_upset_grob <- grid.grabExpr({
+  ht_up <- UpSet(m_up, set_order = rownames(m_up), pt_size = unit(1.5, "mm"), lwd=1)
+  draw(ht_up, newpage = FALSE)
+})
+
+f_up <- make_comb_mat(female_list, mode="intersect")
+female_upset_grob <- grid.grabExpr({
+  ht_up <- UpSet(f_up, set_order=rownames(f_up), pt_size = unit(1.5, "mm"), lwd=1)
+  draw(ht_up, newpage=FALSE)
+})
+
+supp_fig3 <- plot_grid(
+  male_upset_grob,
+  female_upset_grob,
+  ncol = 1,
+  rel_heights = c(1, 1)  # makes the UpSet plot a bit taller
+)
+
+ggsave(
+  filename = "new_figs/supp_fig3.pdf", 
+  plot     = supp_fig3, 
+  width    = 10, 
+  height   = 8, 
+  dpi      = 300
+)
+
+
+running_list <- list()
+for (i in 1:length(male_list)) {
+  common_elements <- intersect(male_list[[i]], female_list[[i]])
+  print(length(common_elements))
+  running_list <- append(running_list, list(common_elements))
+}
+
+running_list <- unlist(running_list)
+running_list <- unique(running_list)
+print(length(running_list))
+```
+
+
+Create dot plot visualizing filter amounts
+
+```{r}
+to_plot <- data.frame(
+  Window = factor(rep(c("[0-20]", "[5-25]", "[10-30]", 
+                        "[15-35]", "[20-40]", "[25-45]", 
+                        "[30-50]", "[35-55]", "[40-60]", 
+                        "[45-65]", "[50-70]", "[55-75]", 
+                        "[60-80]"), each=3), 
+                  levels = c("[0-20]", "[5-25]", "[10-30]", 
+                            "[15-35]", "[20-40]", "[25-45]", 
+                            "[30-50]", "[35-55]", "[40-60]", 
+                            "[45-65]", "[50-70]", "[55-75]", 
+                            "[60-80]")),
+  Group = rep(c("All aaCpGs", "Male aaCpGs", "Female aaCpGs"), times=13),
+  Count = c(485, 1237, 498,
+            13106, 20693, 5539,
+            6957, 2981, 5048,
+            212, 100, 522,
+            702, 1339, 301,
+            100, 100, 100,
+            100, 100, 100,
+            100, 100, 100,
+            100, 100, 100,
+            100, 100, 100,
+            1655, 472, 978,
+            4617, 8410, 2463,
+            1718, 9662, 979)
+)
+
+ggdotplot(to_plot, x = "Window", y = "Count", fill="Group", color="Group") +
+  geom_line(aes(group = Group, color = Group)) +
+  theme_and_axis_legend
+
+ggline(
+  data = to_plot,
+  x = "Window",
+  y = "Count",
+  color = "Group",
+  group = "Group",
+  add = "dotplot"   
+) + 
+  theme_and_axis_legend
+ggsave("new_figs/filter_dotplot.png", plot=last_plot(), width=10, height = 3, dpi=300)
+```
+
+```{r}
+View(clock_cpgs)
+```
+
+```{r}
+library(gridBase)
+library(circlize)
+library(ggplotify)
+library(gridGraphics)
+
+grab_grob <- function() {
+  grid.echo()
+  grid.grab()
+}
+
+# fig 4 here -> upset plots are not saving properly??
+
+# Circos plots showing genomic distribution of CpGs
+
+# A: 450K array, filtered down, aaCpG
+# B: 4 clusters
+# C: aaCpG, male aaCpG, female aaCpG
+
+# 450K array
+ann <- read.table("HM450.hg38.manifest.tsv", sep="\t", header=TRUE, quote="", comment.char="", fileEncoding = "UTF-8")
+ann <- ann[!is.na(ann$CpG_chrm) & !is.na(ann$CpG_beg) & !is.na(ann$CpG_end), ]
+rownames(ann) <- ann$probeID
+K450 <- ann[, 1:3]
+colnames(K450) <- c("chr", "start", "end")
+
+# Whole genome, filtered
+M28 <- read.csv("CPG_position.csv")
+M28$end <- M28$start + 2
+set.seed(123)
+M1 <- M28[sample(nrow(M28), size=1000000, replace=FALSE), ]
+
+# need to run clustering code first
+# non_all contains all cluster information
+
+all_aaCpG <- rownames(non_all)
+male_aaCpG <- rownames(male_all)
+female_aaCpG <- rownames(female_all)
+all_aaCpG_plt <- K450[rownames(K450) %in% all_aaCpG, ]
+male_aaCpG_plt <- K450[rownames(K450) %in% male_aaCpG, ]
+female_aaCpG_plt <- K450[rownames(K450) %in% female_aaCpG, ]
+
+filtered_down_cpg <- readRDS("cpg_list.rds")
+filtered_plt <- K450[rownames(K450) %in% filtered_down_cpg, ]
+
+cluster1_cpg <- rownames(non_all[non_all$Cluster==1, ])
+cluster2_cpg <- rownames(non_all[non_all$Cluster==2, ])
+cluster3_cpg <- rownames(non_all[non_all$Cluster==3, ])
+cluster4_cpg <- rownames(non_all[non_all$Cluster==4, ])
+
+clus1_plt <- K450[rownames(K450) %in% cluster1_cpg, ]
+clus2_plt <- K450[rownames(K450) %in% cluster2_cpg, ]
+clus3_plt <- K450[rownames(K450) %in% cluster3_cpg, ]
+clus4_plt <- K450[rownames(K450) %in% cluster4_cpg, ]
+
+
+lgd_points = Legend(at = c("Whole Genome CpGs"), type = "points", 
+    legend_gp = gpar(col = "blue"), title_position = "topleft", 
+    title = " ")
+lgd_points2 = Legend(at = c("Trimmed CpGs"), type = "points", 
+    legend_gp = gpar(col = "red"), title_position = "topleft", 
+    title = " ")
+lgd_points3 = Legend(at = c("All aaCpGs"), type = "points", 
+    legend_gp = gpar(col = "green"), title_position = "topleft", 
+    title = " ")
+lgd_list_vertical = packLegend(lgd_points, lgd_points2, lgd_points3)
+
+#png("figs/circosA.png", width = 8, height=6, units="in", res=300)
+p1 <- grid.grabExpr({
+  plot.new() 
+  circle_size <- unit(1, "snpc")
+  pushViewport(viewport(x = 0, y = 0.5, width = circle_size, height = circle_size,
+                          just = c("left", "center")))
+  par(omi = gridOMI(), new = TRUE)
+  # Initialize circos with ideogram for chromosomes 1-22 (hg38)
+  circos.initializeWithIdeogram(chromosome.index = paste0("chr", 1:22), species = "hg38")
+  # Plot the density tracks
+  circos.genomicDensity(M1, col = "blue", track.height = 0.1)
+  circos.genomicDensity(filtered_plt, col = "red", track.height = 0.1)
+  circos.genomicDensity(all_aaCpG_plt, col = "green", track.height = 0.1)
+  upViewport()  # exit viewport
+  # Draw the legend list on the left of the circle; adjust x/just as needed
+  draw(lgd_list_vertical, x = circle_size, just = "left")
+  
+  test <- grab_grob()
+  
+})
+circos.clear()
+#dev.off()
+
+# Warning in par(omi = gridOMI(), new = TRUE) :
+#   calling par(new=TRUE) with no plot
+
+
+
+# B
+
+lgd_points = Legend(at = c("Cluster 1 aaCpGs"), type = "points", 
+    legend_gp = gpar(col = "blue"), title_position = "topleft", 
+    title = " ")
+lgd_points2 = Legend(at = c("Cluster 2 aaCpGs"), type = "points", 
+    legend_gp = gpar(col = "red"), title_position = "topleft", 
+    title = " ")
+lgd_points3 = Legend(at = c("Cluster 3 aaCpGs"), type = "points", 
+    legend_gp = gpar(col = "green"), title_position = "topleft", 
+    title = " ")
+lgd_points4 = Legend(at = c("Cluster 4 aaCpGs"), type = "points", 
+    legend_gp = gpar(col = "purple"), title_position = "topleft", 
+    title = " ")
+lgd_list_vertical = packLegend(lgd_points, lgd_points2, lgd_points3, lgd_points4)
+
+#png("figs/circosB.png", width = 8, height=6, units="in", res=300)
+p2 <- grid.grabExpr({
+  plot.new()
+  circle_size <- unit(1, "snpc")
+  pushViewport(viewport(x = 0, y = 0.5, width = circle_size, height = circle_size,
+                          just = c("left", "center")))
+  par(omi = gridOMI(), new = TRUE)
+  circos.initializeWithIdeogram(chromosome.index = paste0("chr", 1:22), species = "hg38")
+  circos.genomicDensity(clus1_plt, col = "blue", track.height = 0.1)
+  circos.genomicDensity(clus2_plt, col = "red", track.height = 0.1)
+  circos.genomicDensity(clus3_plt, col = "green", track.height = 0.1)
+  circos.genomicDensity(clus4_plt, col = "purple", track.height = 0.1)
+  upViewport()
+  draw(lgd_list_vertical, x = circle_size, just = "left")
+})
+circos.clear()
+#dev.off()
+
+# C
+lgd_points = Legend(at = c("All aaCpGs"), type = "points", 
+    legend_gp = gpar(col = "blue"), title_position = "topleft", 
+    title = " ")
+lgd_points2 = Legend(at = c("Male aaCpGs"), type = "points", 
+    legend_gp = gpar(col = "red"), title_position = "topleft", 
+    title = " ")
+lgd_points3 = Legend(at = c("Female aaCpGs"), type = "points", 
+    legend_gp = gpar(col = "green"), title_position = "topleft", 
+    title = " ")
+lgd_list_vertical = packLegend(lgd_points, lgd_points2, lgd_points3)
+
+#png("figs/circosC.png", width = 8, height=6, units="in", res=300)
+p3 <- grid.grabExpr({
+  plot.new()
+  circle_size <- unit(1, "snpc")
+  pushViewport(viewport(x = 0, y = 0.5, width = circle_size, height = circle_size,
+                          just = c("left", "center")))
+  par(omi = gridOMI(), new = TRUE)
+  circos.initializeWithIdeogram(chromosome.index = paste0("chr", 1:22), species = "hg38")
+  circos.genomicDensity(all_aaCpG_plt, col = "blue", track.height = 0.1)
+  circos.genomicDensity(male_aaCpG_plt, col = "red", track.height = 0.1)
+  circos.genomicDensity(female_aaCpG_plt, col = "green", track.height = 0.1)
+  upViewport()
+  draw(lgd_list_vertical, x = circle_size, just = "left")
+})
+circos.clear()
+#dev.off()
+
+# combine into single using cowplot
+
+combined_plot <- plot_grid(p1, p2, p3, ncol=1)
+print(combined_plot)
+ggsave("new_figs/circos_all.pdf", device=cairo_pdf, plot = combined_plot, dpi = 300)
+```
+
+

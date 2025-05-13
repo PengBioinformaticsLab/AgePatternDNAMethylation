@@ -1,0 +1,171 @@
+---
+title: "Clustering
+output: html_notebook
+---
+
+```{r}
+clocks <- c("McEwen", "Wu", "Hannum", "Horvath", "Levine", "Belsky", "Teschendorff", "Shireby", "Lu")
+selected_clock_cpgs <- readRDS("clock_cpgs.rds")
+clock_annotations <- matrix(0,
+  nrow = length(selected_clock_cpgs),
+  ncol = length(clocks),
+  dimnames = list(selected_clock_cpgs, clocks)
+)
+
+for(j in seq_along(clocks)) {
+  this_clock <- clocks[j]
+  hits <- rownames(clock_annotations) %in% clock_cpgs[[ this_clock ]]
+  clock_annotations[hits, this_clock] <- 1
+}
+
+correct_order <- readRDS("correct_order.rds") # is this the correct order before or after ordering??
+clock_annotations <- clock_annotations[correct_order, ]
+
+df_ann <- as.data.frame(clock_annotations, stringsAsFactors = FALSE)
+df_ann[] <- lapply(df_ann, function(x) factor(x, levels = c(0,1)))
+
+ha <- rowAnnotation(
+  df = df_ann,
+  col = list(
+    McEwen       = c("0"="gray","1"="purple"),
+    Wu           = c("0"="gray","1"="orange"),
+    Hannum       = c("0"="gray","1"="red"),
+    Horvath      = c("0"="gray","1"="blue"),
+    Levine       = c("0"="gray","1"="green"),
+    Belsky        = c("0"="gray","1"="yellow"),
+    Teschendorff = c("0"="gray","1"="pink"),
+    Shireby      = c("0"="gray","1"="magenta"),
+    Lu           = c("0"="gray","1"="maroon")
+  ),
+  simple_anno_size  = unit(3, "mm"),
+  show_legend       = FALSE,
+  annotation_name_gp = gpar(fontsize=10, fontfamily="Helvetica")
+)
+```
+
+```{r}
+# params: num_clusters, SAVE, CLOCK, gender
+
+# run either to save plot (for later use) or get the dataframe with clusters annotated
+non_all <- mainPipeline(4, TRUE, FALSE, "all", "df", c("C", "D"))
+clock_all <- mainPipeline(4, TRUE, TRUE, "all", "df", c("A", "B"))
+male_all <- mainPipeline(4, TRUE, FALSE, "male", "plot", c("A", "B"))
+female_all <- mainPipeline(4, TRUE, FALSE, "female", "plot", c("C", "D"))
+
+# save for later for combination with enrichment stuff
+fig2a <- clock_all
+fig2b <- non_all
+
+fig5a <- male_all
+fig5b <- female_all
+
+
+```
+
+Determine enrichment of CpG sites in clusters
+- enrichment of clock CpGs in clock clusters
+- enrichment of aaCpGs in each window in aaCpG clusters (Fig. 3C & Fig. 3D)
+
+*Necessary to run mainPipeline to have the matrices with cluster annotations ready, but can be done quickly by specifying save=FALSE and plot_smooth=FALSE
+*Necessary to run filter code to have list1 ready
+
+```{r}
+
+# Run
+
+ht <- clusterEnrichment(clock_all, 4, clock_cpgs_list)
+p3 <- grid.grabExpr(draw(ht, column_title = "Cluster Enrichment by Clocks", column_title_gp = gpar(fontsize=14, fontface="bold", fontfamily="Helvetica")))
+
+ht2 <- clusterEnrichment(non_all, 4, all_list)
+p4 <- grid.grabExpr(draw(ht2, column_title = "Cluster Enrichment by Windows", column_title_gp = gpar(fontsize=14, fontface="bold", fontfamily="Helvetica")))
+
+fig2c <- ggarrange(p3, p4, labels=c("E", "F"))
+```
+
+```{r}
+# combined for fig2 -> fig2a, fig2b, p3, and p4
+
+combined <- plot_grid(fig2a, fig2b, fig2c, nrow=3, rel_heights = c(1, 1, 0.8))
+ggsave("new_figs/fig_2.pdf", plot = combined, device=cairo_pdf, 
+        width = 15, height = 16, dpi=300)
+
+# combined for fig5 <- fig5a, fig5b
+
+combined <- plot_grid(fig5a, fig5b, nrow=2)
+ggsave("new_figs/fig_5.pdf", plot = combined, device = cairo_pdf, width = 15, height = 11.42, dpi=300)
+
+
+```
+
+
+
+UNUSED BELOW
+
+```{r}
+library(circlize)
+library(gridBase)
+
+ann <- read.table("HM450.hg38.manifest.tsv", sep="\t", header=TRUE, quote="", comment.char="", fileEncoding = "UTF-8")
+ann <- ann[!is.na(ann$CpG_chrm) & !is.na(ann$CpG_beg) & !is.na(ann$CpG_end), ]
+rownames(ann) <- ann$probeID
+#earlyagegroup <- four_cluster_select[four_cluster_select$Cluster==1 | four_cluster_select$Cluster==3, ]
+#earlycpgs <- rownames(earlyagegroup)
+
+#oldagegroup <- four_cluster_select[four_cluster_select$Cluster==2 | four_cluster_select$Cluster==4, ]
+#oldcpgs <- rownames(oldagegroup)
+all_aaCpGs <- readRDS("all_select_cpg.rds")
+male_aaCpGs <- readRDS("male_select_cpg.rds")
+female_aaCpGs <- readRDS("female_select_cpg.rds")
+
+K450 <- ann[, 1:3]
+colnames(K450) <- c("chr", "start", "end")
+selected <- K450[rownames(K450) %in% all_aaCpGs, ]
+maleSelected <- K450[rownames(K450) %in% male_aaCpGs, ]
+femaleSelected <- K450[rownames(K450) %in% female_aaCpGs, ]
+#youngSelected <- K450[rownames(K450) %in% earlycpgs, ]
+#oldSelected <- K450[rownames(K450) %in% oldcpgs, ]
+#all_sites <- readRDS("7_23_all_sites.rds")
+#K300 <- ann[rownames(ann) %in% all_sites, 1:3]
+
+#set.seed(123)
+#M1 <- M28[sample(nrow(M28), size=1000000, replace=FALSE), ]
+
+
+
+lgd_points = Legend(at = c("450K CpGs"), type = "points", 
+    legend_gp = gpar(col = "blue"), title_position = "topleft", 
+    title = " ")
+lgd_points2 = Legend(at = c("Selected aaCpGs"), type = "points", 
+    legend_gp = gpar(col = "red"), title_position = "topleft", 
+    title = " ")
+lgd_points3 = Legend(at = c("Male aaCpGs"), type = "points", 
+    legend_gp = gpar(col = "green"), title_position = "topleft", 
+    title = " ")
+lgd_points4 = Legend(at = c("Female aaCpGs"), type = "points", 
+     legend_gp = gpar(col = "purple"), title_position = "topleft", 
+     title = " ")
+lgd_list_vertical = packLegend(lgd_points, lgd_points2, lgd_points3, lgd_points4)
+
+#save(M28, K300, selected, file="10_15.RData")
+#load("10_15.RData")
+
+png("new_figs/temp_circos.png", width = 8, height=6, units="in", res=300)
+plot.new()
+circle_size = unit(1, "snpc")
+pushViewport(viewport(x = 0, y = 0.5, width = circle_size, height = circle_size,
+    just = c("left", "center")))
+par(omi = gridOMI(), new = TRUE)
+#vps <- baseViewports()
+#par(new = TRUE, fig = gridFIG())
+circos.initializeWithIdeogram(chromosome.index = paste0("chr", 1:22), species="hg38")
+        #circos.genomicDensity(M28, col = c("#FF000080"), track.height = 0.1)
+circos.genomicDensity(K450, col=c("blue"), track.height=0.1)
+circos.genomicDensity(selected, col=c("red"), track.height=0.1)
+circos.genomicDensity(maleSelected, col=c("green"), track.height=0.1)
+circos.genomicDensity(femaleSelected, col=c("purple"), track.height=0.1)
+
+upViewport()
+draw(lgd_list_vertical, x = circle_size, just = "left")
+dev.off()
+```
+

@@ -1,0 +1,231 @@
+---
+title: "FilterHelpers"
+output: html_notebook
+---
+
+Calculate statistics for downstream filtering
+
+```{r}
+library(parallel)
+
+# param avg_matrix_path: path to matrix of average betas (from Preproc.Rmd)
+# param sd_matrix_path: path to matrix of standard deviations, used to fulfill one filter criterion (from Preproc.Rmd)
+
+# output: data frame of 3 columns for each age range -> correlation, abs change, num points over sd threshold
+
+extractResults <- function(avg_matrix_path, sd_matrix_path) {
+  # Read matrices
+  B <- fread(avg_matrix_path)
+  S <- fread(sd_matrix_path)
+  
+  # Format matrices
+  B <- as.data.frame(B)
+  rownames(B) <- B[, 1]
+  B <- B[, -1]
+  S <- as.data.frame(S)
+  rownames(S) <- S[, 1]
+  S <- S[, -1]
+  
+  # Initialize results output
+  results_full <- data.frame()
+  # Determine the number of cores for parallel processing
+  num_cores <- min(detectCores() - 1, 8)  # Use a maximum of 4 cores or one less than available
+
+  for (start_age in seq(0, 60, by=5)) {
+    end_age <- start_age + 20
+    
+    # Logging
+    print(paste0("Processing start age: ", start_age))
+    
+    # Extract relevant columns
+    des_cols <- which(as.numeric(gsub("age_", "", colnames(B))) >= start_age & 
+                        as.numeric(gsub("age_", "", colnames(B))) <= end_age)
+    
+    # Subset initial matrices
+    sub_B <- B[, des_cols]
+    sub_S <- S[, des_cols]
+    
+    age_sequence <- as.numeric(gsub("age_", "", colnames(sub_B)))
+
+    # Calculate correlations
+    corr_results <- apply(sub_B, 1, function(x) cor(x, age_sequence, use = "complete.obs"))
+
+    # Calculate absolute beta change
+    calc_abs_change <- function(x, age_seq) {
+      # Fit linear model
+      fit <- lm(x ~ age_seq)
+      
+      # Predict values at starting and ending age points
+      start_pred <- predict(fit, newdata = data.frame(age_seq = start_age))
+      end_pred <- predict(fit, newdata = data.frame(age_seq = end_age))
+      
+      # Calculate absolute beta change
+      abs_change <- abs(end_pred - start_pred)
+      
+      return(abs_change)
+    }
+    
+    # Apply the function to each row in sub_B
+    abs_change_results <- apply(sub_B, 1, function(x) calc_abs_change(x, age_sequence))    
+    # Calculate num variance
+    # Set threshold
+    adj_avg <- 0.5 * sqrt(sub_B * (1 - sub_B))
+
+    # Change to matrix    
+    sub_S_matrix <- as.matrix(sub_S)
+
+    # Count how many age points are above threshold
+    is_above_threshold <- !is.na(adj_avg) & !is.na(sub_S_matrix) & (sub_S_matrix > adj_avg)
+    sd_results <- rowSums(is_above_threshold, na.rm = TRUE)
+    sd_results <- as.data.frame(sd_results)
+
+    # Combine results
+    temp_results <- data.frame(corr_results, abs_change_results, sd_results)
+    
+    # Assign appropriate column names
+    name_cols <- c(paste0(start_age, "-", end_age, "-corr_res"),
+                   paste0(start_age, "-", end_age, "-abs_res"),
+                   paste0(start_age, "-", end_age, "-sd_res0.5"))
+    colnames(temp_results) <- name_cols
+    rownames(temp_results) <- rownames(sub_B)
+    
+    # Add to main results
+    if (ncol(results_full) == 0) {
+      results_full <- temp_results
+    } else {
+      results_full <- cbind(results_full, temp_results)
+    }
+  }
+  
+  return(results_full)
+}
+```
+
+Filter using results 
+
+```{r}
+# param results: results dataframe from extractResults function
+# param gender_state: 1 for male, 2 for male, 3 for female
+# param cor_threshold: correlation coefficient cutoff
+# param abs_threshold: absolute change per interval cutoff
+# param sd_threshold: threshold for sd relating to beta
+
+# note: if less than 100 sites selected for filter, first do standard deviation filtering, then filter for top 1000 by r, then final top 100 by absolute beta change, just for representation of other age windows
+
+# output: structure with for each age window: num of cpg sites filtered and full list
+extract_sites <- function(results, gender_state, cor_threshold, abs_threshold, sd_threshold, extra_filter=TRUE) {
+  significant_counts <- data.frame(age_window = character(), count = integer(), sites = I(list()), stringsAsFactors=FALSE)
+  
+  # Extract values from filter results
+  for (i in seq(1, ncol(results), by=3)) {
+    filtered_in_window <- apply(results[, c(i, i+1, i+2)], 1, function(row) {
+      corr_res <- row[1]
+      abs_res <- row[2]
+      sd_res <- row[3]
+      !is.na(corr_res) && !is.na(abs_res) && !is.na(sd_res) &&
+      abs(corr_res) > cor_threshold && abs_res > abs_threshold && sd_res < sd_threshold
+    })
+    cpg_sites <- rownames(results)[filtered_in_window]
+    
+    # EXTRA CRITERIA TO ENSURE AT LEAST 100 PER WINDOW
+    if (extra_filter) {
+      if (length(cpg_sites) < 100) {
+        temp <- results[, c(i, i+1, i+2)]
+        # QC Standard deviation filtering
+        temp <- temp[temp[, i %% 3 + 2] < sd_threshold, ]
+        # top 1000 by correlation coefficient
+        temp <- temp[order(-abs(temp[, i %% 3 ])), ]
+        temp <- temp[1:1000, ]
+        # top 100 by absolute beta change
+        temp <- temp[order(-temp[, i %% 3 + 1]), ]
+        temp <- temp[1:100, ]
+        
+        cpg_sites <- rownames(temp)
+      }
+    }
+    window_name <- gsub("-corr_res", "", colnames(results)[i])
+     significant_counts <- rbind(significant_counts, data.frame(
+       Age_Window = window_name, 
+       Count = length(cpg_sites), 
+       Gender = ifelse(gender_state == 1, "All", ifelse(gender_state == 2, "Male", "Female")),
+       CpG_Sites = I(list(cpg_sites))
+     ))
+  }
+  return(significant_counts)
+}
+
+# param significant_counts: result from extrac_sites function
+
+# output: list with identifier as age window, filled with list of CpG sites
+convert_to_list_format <- function(significant_counts) {
+  result_list <- list()
+  
+  for (i in 1:nrow(significant_counts)) {
+    window_name <- significant_counts$Age_Window[i]
+    cpg_sites <- significant_counts$CpG_Sites[[i]]
+    result_list[[window_name]] <- cpg_sites
+  }
+  
+  return(result_list)
+}
+```
+
+```{r}
+Hannum_CpGs <- read_excel("CpGsToInvestigate/hannum_cpgs.xlsx")
+Hannum_CpGs <- Hannum_CpGs$Marker #71
+Levine_CpGs <- read.csv("CpGsToInvestigate/levine_cpgs.csv", stringsAsFactors=FALSE)
+Levine_CpGs <- Levine_CpGs[-1, ]
+Levine_CpGs <- Levine_CpGs$CpG #513
+Horvath_CpGs <- read.csv("CpGsToInvestigate/horvath_cpgs.csv", stringsAsFactors=FALSE)
+Horvath_CpGs <- Horvath_CpGs[-(1:3), 1, drop=FALSE]
+Horvath_CpGs <- Horvath_CpGs[, 1] #353
+McEwen_CpGs <- read.csv("CpGsToInvestigate/mcewen_cpgs.csv")
+McEwen_CpGs <- McEwen_CpGs$CPG #94
+Wu_CpGs <- read_excel("CpGsToInvestigate/aging-11-102399-s003..xlsx")
+Wu_CpGs <- Wu_CpGs[-1, ]
+Wu_CpGs <- Wu_CpGs$CpGs #111
+Belsky_CpGs <- getRequiredProbes(backgroundList=FALSE)
+Belsky_CpGs <- unlist(Belsky_CpGs) #173
+load("CpGsToInvestigate/epitoc.Rd")
+Teschendorff_CpGs <- as.data.frame(dataETOC2.l[1])
+Teschendorff_CpGs <- rownames(Teschendorff_CpGs) #163
+Shireby_CpGs <- readLines("CpGsToInvestigate/CorticalClockCoefs.txt")[-1]
+Shireby_CpGs <- sapply(strsplit(Shireby_CpGs, " "), `[`, 1)
+Shireby_CpGs <- unlist(Shireby_CpGs) #347
+Lu2_CpGs <- read_excel("CpGsToInvestigate/lu2.xlsx")
+Lu2_CpGs <- rbind(colnames(Lu2_CpGs), Lu2_CpGs)
+Lu2_CpGs <- Lu2_CpGs[, 1]
+Lu2_CpGs <- as.character(Lu2_CpGs[[1]]) #140
+clock_cpgs <- list(
+  McEwen = McEwen_CpGs,
+  Wu = Wu_CpGs,
+  Hannum = Hannum_CpGs,
+  Horvath = Horvath_CpGs,
+  Levine = Levine_CpGs,
+  Belsky = Belsky_CpGs,
+  Teschendorff = Teschendorff_CpGs,
+  Shireby = Shireby_CpGs,
+  Lu = Lu2_CpGs
+)
+
+cpgs <- unlist(clock_cpgs)
+cpgs <- unique(cpgs) #1868 total sites
+
+print(paste0("Total Unique CpG sites from 9 clocks explored: ", length(cpgs)))
+
+#write.csv(cpgs, "7_3_overlap.csv")
+
+# Filter for clock sites in 18/23 datasets
+filtered_sites <- readRDS("clock_cpgs.rds") # filtered list of clock cpgs
+for (i in 1:length(clock_cpgs)) {
+  clock_cpgs[[i]] <- intersect(clock_cpgs[[i]], filtered_sites)
+}
+
+# UpSet plot for clock site overlap 
+# Will modify aesthetics to match when aesthetics for previous plots are finalized.
+m1 <- make_comb_mat(clock_cpgs, mode="distinct")
+UpSet(m1, set_order = rownames(m1))
+#dev.copy(png, "figs/clockcpgupset.png", width=1800, height=900, res=300)
+#dev.off()
+```
+

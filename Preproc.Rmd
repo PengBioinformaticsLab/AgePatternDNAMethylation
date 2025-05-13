@@ -1,0 +1,1610 @@
+---
+title: "Pre-Processing"
+output: html_notebook
+---
+
+```{r}
+# load any extra packages needed here
+# packages loaded concordantly in HelperFunctions.Rmd
+```
+
+```{r}
+# Read standard CpG site list to be used (not until matrix has been generated then filtered)
+ann <- read.table("HM450.hg38.manifest.tsv", sep="\t", header=TRUE, quote="", comment.char="", fileEncoding = "UTF-8")
+standard_cpg_list <- ann$probeID
+```
+
+
+- One by one -> keep track in notebook
+
+Start from scratch (datasets directly from OneDrive) 
+- M to beta conversion ✔️
+- bounding checks ✔️
+- 850K to 450K platform conversion problems ✔️
+
+   - Generate histograms of age distribution + distribution across datasets (colored + patterned)
+   - generate bar plot of unique CpG distribution across datasets
+
+- save in standardized format given by https://bio-learn.github.io/methylation-standard.html will load correctly. (slightly modified w/ row and column names)
+ - format as csv
+ - each row has same number of entries
+ - row corresponds to measurements to a CpG site, with rownames as CpG ID
+ - rownames is in standard cpg order
+ - colNames has sample ID
+ * no more than 1000 samples if wanted to be used with biolearn package
+ - metadata must have 0 for female, 1 for male
+ - column names: sample_id, age, gender, type, tissue, disease state (may need placeholder columns if datasets do not contain them)
+
+- Made the choice to individually go through each dataset instead of writing a pipeline function to ensure that nuances do not slip through
+
+```{r}
+# 4 things to check after each dataset has been processed: metadata_tracker, running_site_list, and valid_samples, full_metadata
+age_range <- 0:100
+metadata_tracker <- data.frame(matrix(0, nrow=length(age_range), ncol=0))
+rownames(metadata_tracker) <- paste0("age", age_range)
+
+running_site_list <- data.frame(Count = rep(0, length(standard_cpg_list)))
+rownames(running_site_list) <- standard_cpg_list
+
+valid_samples <- list()
+
+full_metadata <- data.frame(sample_id = NULL,
+                            age = NULL, 
+                            gender = NULL,
+                            type = NULL,
+                            tissue = NULL,
+                            disease_status = NULL)
+
+# GSE32148
+# ------------------
+
+file_path <- "original_datasets/oGSE32148_beta.xlsx"
+file_path2 <- "original_datasets/oGSE32148_md.xlsx"
+
+temp_beta <- xlsx_helper(file_path)
+temp_md <- xlsx_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE32148")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+full_metadata <- rbind(full_metadata, temp_md)
+
+# save processed data
+#write.csv(new_dataset, "pp_datasets/GSE32148_pp.csv") # work-around to preserve rownames, when read using fread, rownames become the first column
+
+# GSE36054
+# ------------------
+
+file_path <- "original_datasets/oGSE36054_beta.xlsx"
+file_path2 <- "original_datasets/oGSE36054_md.xlsx"
+
+temp_beta <- xlsx_helper(file_path)
+temp_md <- xlsx_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE36054")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+temp_md$disease_status <- "none"
+colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
+full_metadata <- rbind(full_metadata, temp_md)
+
+#write.csv(new_dataset, "pp_datasets/GSE36054_pp.csv")
+
+# GSE40279
+# ------------------
+
+file_path <- "original_datasets/oGSE40279_beta.csv"
+file_path2 <- "original_datasets/oGSE40279_md.csv"
+
+temp_beta <- csv_helper(file_path)
+temp_md <- csv_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE40279")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+temp_md$disease_status <- "none"
+colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
+full_metadata <- rbind(full_metadata, temp_md)
+
+#write.csv(new_dataset, "pp_datasets/GSE40279_pp.csv")
+
+# GSE50660
+# ------------------
+
+file_path <- "original_datasets/oGSE50660_beta.csv"
+file_path2 <- "original_datasets/oGSE50660_md.csv"
+
+temp_beta <- csv_helper(file_path)
+temp_md <- csv_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE50660")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+temp_md$disease_status <- "none"
+colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
+full_metadata <- rbind(full_metadata, temp_md)
+
+#write.csv(new_dataset, "pp_datasets/GSE50660_pp.csv")
+
+# GSE50759
+# ------------------
+
+file_path <- "original_datasets/oGSE50759_beta.xlsx"
+file_path2 <- "original_datasets/oGSE50759_md.xlsx"
+
+temp_beta <- xlsx_helper(file_path)
+temp_md <- xlsx_helper(file_path2)
+colnames(temp_md) <- c("sample_id", "age", "gender", "type")
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+temp_beta <- m_to_b(temp_beta)
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE50759")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+temp_md$tissue <- "none"
+temp_md$disease_status <- "none"
+colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
+full_metadata <- rbind(full_metadata, temp_md)
+
+#write.csv(new_dataset, "pp_datasets/GSE50759_pp.csv")
+
+# GSE51057
+# ------------------
+
+file_path <- "original_datasets/oGSE51057_beta.csv"
+file_path2 <- "original_datasets/oGSE51057_md.csv"
+
+temp_beta <- csv_helper(file_path)
+temp_md <- csv_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE51057")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+temp_md$tissue <- "none"
+temp_md$disease_status <- "none"
+colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
+full_metadata <- rbind(full_metadata, temp_md)
+
+#write.csv(new_dataset, "pp_datasets/GSE51057_pp.csv")
+
+# GSE53740
+# ------------------
+
+file_path <- "original_datasets/oGSE53740_beta.csv"
+file_path2 <- "original_datasets/oGSE53740_md.csv"
+
+temp_beta <- csv_helper(file_path)
+temp_md <- csv_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE53740")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+temp_md$tissue <- "none"
+temp_md <- temp_md[, c(1, 2, 3, 4, 6, 5)]
+colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
+full_metadata <- rbind(full_metadata, temp_md)
+
+#write.csv(new_dataset, "pp_datasets/GSE53740_pp.csv")
+
+# GSE61256
+# ------------------
+
+file_path <- "original_datasets/oGSE61256_beta.csv"
+file_path2 <- "original_datasets/oGSE61256_md.csv"
+
+temp_beta <- csv_helper(file_path)
+temp_md <- csv_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE61256")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+temp_md$tissue <- "none"
+temp_md <- temp_md[, c(1, 2, 3, 4, 6, 5)]
+colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
+full_metadata <- rbind(full_metadata, temp_md)
+
+#write.csv(new_dataset, "pp_datasets/GSE61256_pp.csv")
+
+# GSE67705
+# ------------------
+
+file_path <- "original_datasets/oGSE67705_beta.csv"
+file_path2 <- "original_datasets/oGSE67705_md.csv"
+
+temp_beta <- csv_helper(file_path)
+temp_md <- csv_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE67705")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+temp_md$disease_status <- "none"
+colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
+full_metadata <- rbind(full_metadata, temp_md)
+
+#write.csv(new_dataset, "pp_datasets/GSE67705_pp.csv")
+
+# GSE73103
+# ------------------
+
+file_path <- "original_datasets/oGSE73103_beta.csv"
+file_path2 <- "original_datasets/oGSE73103_md.csv"
+
+temp_beta <- csv_helper(file_path)
+temp_md <- csv_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE73103")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+temp_md$disease_status <- "none"
+colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
+full_metadata <- rbind(full_metadata, temp_md)
+
+#write.csv(new_dataset, "pp_datasets/GSE73103_pp.csv")
+
+# GSE80261
+# ------------------
+
+file_path <- "original_datasets/oGSE80261_beta.xlsx"
+file_path2 <- "original_datasets/oGSE80261_md.xlsx"
+
+temp_beta <- xlsx_helper(file_path)
+temp_md <- xlsx_helper(file_path2)
+colnames(temp_md)[1] <- "sample_id"
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE80261")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+temp_md$disease_subgroup <- NULL
+temp_md <- temp_md[, c(1, 2, 3, 4, 6, 5)]
+colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
+full_metadata <- rbind(full_metadata, temp_md)
+
+#write.csv(new_dataset, "pp_datasets/GSE80261_pp.csv")
+
+# GSE85568
+# ------------------
+
+file_path <- "original_datasets/oGSE85568_beta.csv"
+file_path2 <- "original_datasets/oGSE85568_md.csv"
+
+temp_beta <- csv_helper(file_path)
+temp_md <- csv_helper(file_path2)
+colnames(temp_md)[1] <- "sample_id"
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+temp_beta <- limit_bounds(temp_beta)
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE85568")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+temp_md$tissue <- "none"
+temp_md <- temp_md[, c(1, 2, 3, 4, 6, 5)]
+colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
+full_metadata <- rbind(full_metadata, temp_md)
+
+#write.csv(new_dataset, "pp_datasets/GSE85568_pp.csv")
+
+# GSE89253
+# ------------------
+
+file_path <- "original_datasets/oGSE89253_beta.csv"
+file_path2 <- "original_datasets/oGSE89253_md.csv"
+
+temp_beta <- csv_helper(file_path)
+temp_md <- csv_helper(file_path2)
+colnames(temp_md)[1] <- "sample_id"
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+temp_beta <- m_to_b(temp_beta)
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE89253")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+temp_md$tissue <- "none"
+temp_md$disease_status <- "none"
+colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
+full_metadata <- rbind(full_metadata, temp_md)
+
+#write.csv(new_dataset, "pp_datasets/GSE89253_pp.csv")
+
+# GSE90124
+# ------------------
+
+file_path <- "original_datasets/oGSE90124_beta.csv"
+file_path2 <- "original_datasets/oGSE90124_md.csv"
+
+temp_beta <- csv_helper(file_path)
+temp_md <- csv_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE90124")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+temp_md$disease_status <- "none"
+colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
+full_metadata <- rbind(full_metadata, temp_md)
+
+#write.csv(new_dataset, "pp_datasets/GSE90124_pp.csv")
+
+# GSE94734
+# ------------------
+
+file_path <- "original_datasets/oGSE94734_beta.xlsx"
+file_path2 <- "original_datasets/oGSE94734_md.xlsx"
+
+temp_beta <- xlsx_helper(file_path)
+temp_md <- xlsx_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE94734")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+temp_md$tissue <- "none"
+temp_md$disease_status <- "none"
+colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
+full_metadata <- rbind(full_metadata, temp_md)
+
+#write.csv(new_dataset, "pp_datasets/GSE94734_pp.csv")
+
+# GSE106648
+# ------------------
+
+file_path <- "original_datasets/oGSE106648_beta.csv"
+file_path2 <- "original_datasets/oGSE106648_md.csv"
+
+temp_beta <- csv_helper(file_path)
+temp_md <- csv_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE106648")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+temp_md <- temp_md[, c(1, 2, 3, 4, 6, 5)]
+colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
+full_metadata <- rbind(full_metadata, temp_md)
+
+#write.csv(new_dataset, "pp_datasets/GSE106648_pp.csv")
+
+# GSE114134
+# ------------------
+
+file_path <- "original_datasets/oGSE114134_beta.csv"
+file_path2 <- "original_datasets/oGSE114134_md.csv"
+
+temp_beta <- csv_helper(file_path)
+temp_md <- csv_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+temp_beta <- as.matrix(temp_beta)
+temp_beta <- liftover(temp_beta)
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE114134")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+temp_md$tissue <- "none"
+temp_md <- temp_md[, c(1, 2, 3, 4, 6, 5)]
+colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
+full_metadata <- rbind(full_metadata, temp_md)
+
+#write.csv(new_dataset, "pp_datasets/GSE114134_pp.csv")
+
+# GSE124076
+# ------------------
+# CUT FOR NOW
+
+# GSE124366
+# ------------------
+
+file_path <- "original_datasets/oGSE124366_beta.csv"
+file_path2 <- "original_datasets/oGSE124366_md.csv"
+
+temp_beta <- csv_helper(file_path)
+temp_md <- csv_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE124366")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+temp_md$tissue <- "none"
+temp_md$disease_status <- "none"
+colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
+full_metadata <- rbind(full_metadata, temp_md)
+
+#write.csv(new_dataset, "pp_datasets/GSE124366_pp.csv")
+
+# GSE137495
+# ------------------
+
+file_path <- "original_datasets/oGSE137495_beta.xlsx"
+file_path2 <- "original_datasets/oGSE137495_md.xlsx"
+
+temp_beta <- xlsx_helper(file_path)
+temp_md <- xlsx_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE137495")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+temp_md$disease_status <- "none"
+colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
+full_metadata <- rbind(full_metadata, temp_md)
+
+#write.csv(new_dataset, "pp_datasets/GSE137495_pp.csv")
+
+# GSE138279
+# ------------------
+
+file_path <- "original_datasets/oGSE138279_beta.xlsx"
+file_path2 <- "original_datasets/oGSE138279_md.xlsx"
+
+temp_beta <- xlsx_helper(file_path)
+temp_md <- xlsx_helper(file_path2)
+
+print(paste0("Total ages NA: ", sum(is.na(as.numeric(temp_md$age)))))
+print(paste0("Ages above 80: ", sum(as.numeric(temp_md$age)>80, na.rm=TRUE)))
+
+temp_beta <- as.data.frame(temp_beta)
+rownames(temp_beta) <- temp_beta[, 1]
+temp_beta <- temp_beta[, -1]
+
+check_bounds(temp_beta)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(temp_beta)
+new_dataset[rownames(temp_beta), ] <- temp_beta
+
+metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE138279")
+valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
+running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+
+temp_md$disease_status <- "none"
+colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
+full_metadata <- rbind(full_metadata, temp_md)
+
+#write.csv(new_dataset, "pp_datasets/GSE138279_pp.csv")
+
+# Working with new datasets (not on GEO, not from Hari or Wenshu)
+
+library(GEOquery)
+
+#GSE62924
+# ------------------
+
+gse <- getGEO("GSE62924", GSEMatrix = TRUE)
+gse_info <- gse[[1]]
+betas <- exprs(gse_info)
+metadata <- pData(gse_info)
+
+metadata <- metadata[, c(2, 8)]
+metadata$gender <- "none"
+metadata$type <- "genomic"
+metadata$disease_state <- "none"
+metadata$age <- 0
+metadata <- metadata[, c(1, 6, 3, 4, 2, 5)]
+colnames(metadata) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
+
+check_bounds(betas)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(betas)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(betas)
+new_dataset[rownames(betas), ] <- betas
+
+metadata_tracker <- updateMetadata(metadata_tracker, metadata, "GSE62924")
+valid_samples <- updateValidSamples(valid_samples, metadata, 80)
+running_site_list[rownames(betas), ] <- running_site_list[rownames(betas), ] + 1
+
+full_metadata <- rbind(full_metadata, metadata)
+
+#write.csv(new_dataset, "pp_datasets/GSE62924_pp.csv")
+
+#GSE51180
+# ------------------
+
+gse <- getGEO("GSE51180", GSEMatrix = TRUE)
+gse_info <- gse[[1]]
+betas <- exprs(gse_info)
+metadata <- pData(gse_info)
+
+metadata <- metadata[, c(1, 2, 6, 37)]
+metadata$tissue <- "blood spot"
+metadata$disease_status <- "none"
+metadata$age <- ifelse(grepl("at 18 years age", metadata[, 1]), 18, 0)
+metadata <- metadata[, -1]
+metadata <- metadata[, c(1, 6, 3, 2, 4, 5)]
+colnames(metadata) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
+
+check_bounds(betas)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(betas)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(betas)
+new_dataset[rownames(betas), ] <- betas
+
+metadata_tracker <- updateMetadata(metadata_tracker, metadata, "GSE51180")
+valid_samples <- updateValidSamples(valid_samples, metadata, 80)
+running_site_list[rownames(betas), ] <- running_site_list[rownames(betas), ] + 1
+
+full_metadata <- rbind(full_metadata, metadata)
+
+#write.csv(new_dataset, "pp_datasets/GSE51180_pp.csv")
+
+#GSE30870
+# ------------------
+
+gse <- getGEO("GSE30870", GSEMatrix = TRUE)
+gse_info <- gse[[1]]
+betas <- exprs(gse_info)
+metadata <- pData(gse_info)
+
+metadata <- metadata[, c(2, 6, 8, 12)]
+metadata$age <- ifelse(metadata[, 3] == "Newborns", 0, 100) # not all nonagenarians are 100, just setting it do that because it will get cancelled out anyway
+metadata$disease_status <- "none"
+metadata <- metadata[, -3]
+metadata$gender <- "none"
+metadata <- metadata[, c(1, 4, 6, 2, 3, 5)]
+colnames(metadata) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
+
+print(paste0("Ages above 80: ", sum(as.numeric(metadata$age)>80, na.rm=TRUE)))
+
+check_bounds(betas)
+
+new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(betas)), row.names = standard_cpg_list)
+colnames(new_dataset) <- colnames(betas)
+new_dataset[rownames(betas), ] <- betas
+
+metadata_tracker <- updateMetadata(metadata_tracker, metadata, "GSE30870")
+valid_samples <- updateValidSamples(valid_samples, metadata, 80)
+running_site_list[rownames(betas), ] <- running_site_list[rownames(betas), ] + 1
+
+full_metadata <- rbind(full_metadata, metadata)
+
+#write.csv(new_dataset, "pp_datasets/GSE30870_pp.csv")
+
+full_metadata$age <- round(as.numeric(full_metadata$age))
+
+#temp <- unlist(valid_samples)
+#saveRDS(temp, "valid_samples.rds")
+#saveRDS(full_metadata, "full_metadata.rds")
+
+saveRDS(metadata_tracker, "metadata_tracker.rds")
+saveRDS(running_site_list, "running_site_list.rds")
+```
+
+Set ggplot parameters
+
+```{r}
+theme_set(theme_pubr())
+MALE_COLOR <- "#ADD8E6"
+FEMALE_COLOR <- "#FFB6C1"
+ALL_COLOR <- "black"
+
+# theme_and_axis_nolegend <- theme(
+#     legend.position = "none",       
+#     text = element_text(face = "bold"), 
+#     axis.title = element_text(face = "bold", size=30), 
+#     axis.text = element_text(face = "bold", size=20),  
+#     plot.title = element_text(face = "bold", hjust=0.5, size=40),  
+#     plot.subtitle = element_text(face = "bold") 
+#   )
+
+theme_and_axis_nolegend <- theme(
+    legend.position = "none",       
+    text = element_text(face = "bold"), 
+    axis.title = element_text(face = "bold"), 
+    axis.text = element_text(face = "bold"),  
+    plot.title = element_text(face = "bold", hjust=0.5),  
+    plot.subtitle = element_text(face = "bold") 
+  )
+
+theme_and_axis_legend <- theme(
+    legend.position = "right",        
+    text = element_text(face = "bold"), 
+    axis.title = element_text(face = "bold"), 
+    axis.text = element_text(face = "bold"),  
+    plot.title = element_text(face = "bold", hjust = 0.5),  
+    plot.subtitle = element_text(face = "bold"),
+    legend.text = element_text(face = "bold"),
+      legend.box.background = element_rect(color = "black"),
+      theme(legend.key.size = unit(10, "cm")), # not too sure how this works
+    legend.title = element_text(size = 12, face = "bold", hjust = 0.5, family="Helvetica")
+)
+```
+
+
+Generate age distribution figures
+
+```{r}
+# Supp Fig 2
+# A: Histograms of age distribution
+# B: Bar plots of CpG presence
+# C: Segmented bar plot showing sample distribution at each age between datasets
+
+# from last chunk: metadata_tracker & running_site_list
+library(RColorBrewer)
+library(ggplot2)
+library(ggpubr)
+library(gridGraphics)
+library(tidyr)
+
+MALE_COLOR <- "#ADD8E6"
+FEMALE_COLOR <- "#FFB6C1"
+ALL_COLOR <- "black"
+
+md <- readRDS("full_metadata.rds")
+valid_samples <- readRDS("valid_samples.rds")
+male <- readRDS("male_samples.rds")
+female <- readRDS("female_samples.rds")
+
+md <- md[md$sample_id %in% valid_samples, ]
+male_md <- md[md$sample_id %in% male, ]
+female_md <- md[md$sample_id %in% female, ]
+
+# plot histograms
+histogram_list <- list()
+histo1 <- gghistogram(md, x="age", binwidth=1, fill=ALL_COLOR) +
+  labs(x="Age", y="Samples", title="All Samples Age Distribution") +
+  theme_and_axis_legend
+#ggsave("new_figs/allhistogram.png", plot=last_plot(), dpi=300, width = 10, height=4)
+histogram_list[[1]] <- histo1
+
+histo2 <- gghistogram(male_md, x="age", binwidth=1, fill=MALE_COLOR) +
+  labs(x="Age", y="Samples", title="Male Samples Age Distribution")  +
+  theme_and_axis_legend
+#ggsave("new_figs/malehistogram.png", plot=last_plot(), dpi=300, width=10, height=4)
+histogram_list[[2]] <- histo2
+
+histo3 <- gghistogram(female_md, x="age", binwidth=1, fill=FEMALE_COLOR) +
+  labs(x="Age", y="Samples", title="Female Samples Age Distribution") +
+  theme_and_axis_legend
+#ggsave("new_figs/femalehistogram.png", plot=last_plot(), dpi=300, width=10, height=4)
+histogram_list[[3]] <- histo3
+
+histos <- ggarrange(plotlist = histogram_list, ncol = 1)
+#ggsave("test.png", histos, width=5, height=8) # just for checking
+
+running_site_list <- readRDS("running_site_list.rds")
+cpgs <- unlist(clock_cpgs)
+cpgs <- unique(cpgs)
+
+list_2 <- running_site_list[cpgs, ]
+running_site_list <- running_site_list[!is.na(running_site_list), ]
+
+
+#temp <- running_site_list[na.omit(running_site_list)$Count>=18, , drop=FALSE]
+#cpg_list <- rownames(temp)
+
+# load clock sites and filter again
+thresholds <- seq(1, 22, by=1)
+to_plot <- sapply(thresholds, function(t) sum(running_site_list>=t, na.rm=TRUE))
+to_plot <- data.frame(`CpG Count` = to_plot, Threshold = thresholds)
+
+# Plot
+bar1 <- ggbarplot(to_plot, x="Threshold", y="CpG.Count", fill="#4682B4", 
+          title="All 450K CpGs Present Across Datasets") +
+  theme_and_axis_nolegend
+
+# clock_cpgs can be found below this chunk
+
+# list_2
+to_plot2 <- sapply(thresholds, function(t) sum(list_2>=t, na.rm=TRUE))
+to_plot2 <- data.frame(`CpG Count` = to_plot2, Threshold = thresholds)
+
+bar2 <- ggbarplot(to_plot, x="Threshold", y="CpG.Count", fill="#4682B4", 
+          title="1868 Clock CpGs Present Across Datasets") +
+  theme_and_axis_nolegend
+
+
+
+#ggsave("figs/cpgpresencebarplot.png", plot=last_plot(), dpi=900, width=10, height=6)
+
+# Filter again for some reason.. some issues with prev subsetting
+#cpg_list <- intersect(cpg_list, standard_cpg_list)
+
+#saveRDS(cpg_list, "cpg_list.rds")
+
+
+
+
+md_tracker <- readRDS("metadata_tracker.rds")
+
+coul <- colorRampPalette(brewer.pal(8, "Set3"))(23)
+
+data_percentage <- apply(md_tracker, 1, function(x) {x*100/sum(x, na.rm=T)})
+data_percentage <- data_percentage[, 1:81]
+
+#png(filename="new_figs/percenthistogram.png", width = 10, height = 6, units="in", res=300)
+seg_df <- as.data.frame(data_percentage)
+seg_df$Category <- rownames(seg_df)
+colnames(seg_df) <- gsub("age", "", colnames(seg_df))
+long_seg <- seg_df %>%
+  pivot_longer(-Category, names_to = "Age", values_to = "Percentage") %>%
+  mutate(
+    Age = as.integer(Age)   # if your colnames ran "1","2",… for ages 0–80
+  )
+
+# 2) Make a ggbarplot for the stacked‐percentage plot
+
+seg_bar <- ggbarplot(
+  long_seg,
+  x        = "Age",
+  y        = "Percentage",
+  fill     = "Category",
+  position = position_stack()
+) +
+  scale_fill_manual(values = coul) +
+  scale_x_continuous(breaks = seq(0, 80, by = 20)) +
+  labs(x = "Age", y = "Percentage") +
+  theme_and_axis_nolegend
+
+# Supp. fig 2
+h1 <- histogram_list[[1]]
+h2 <- histogram_list[[2]]
+h3 <- histogram_list[[3]]
+
+combined <- ggarrange(
+  h1, h2, h3, bar1, bar2, seg_bar,
+  ncol   = 3, 
+  nrow   = 2,
+  widths = c(1, 1),     # change to give more/less room to left vs right
+  heights= c(1, 1, 1)   # you can make the bottom row taller if needed
+)
+
+# — 5) Save —
+ggsave(
+  "new_figs/supp_fig2.pdf",
+  combined,
+  width  = 16,
+  height = 6,
+  dpi    = 300
+)
+
+
+```
+
+Extract gendered samples
+
+```{r}
+full_metadata <- readRDS("full_metadata.rds")
+
+male_samples <- full_metadata[full_metadata$gender == "male" | full_metadata$gender == "Male", ]$sample_id
+female_samples <- full_metadata[full_metadata$gender == "female" | full_metadata$gender == "Female", ]$sample_id
+
+saveRDS(male_samples, "male_samples.rds")
+saveRDS(female_samples, "female_samples.rds")
+```
+
+
+Get clock sites
+```{r}
+
+#dev.copy(png, "figs/clockcpgupset.png", width=1800, height=900, res=300)
+#dev.off()
+```
+
+Make Splits
+
+```{r}
+#cpg_list <- readRDS("cpg_list.rds") # this is filtered down 393,628
+sites <- readRDS("running_site_list.rds")
+cpg_list <- rownames(sites) # full 486427
+full_metadata <- readRDS("full_metadata.rds")
+valid_samples <- readRDS("valid_samples.rds")
+output_folder <- "splits/"
+
+makeSplits(cpg_list, full_metadata, valid_samples, 50000, output_folder)
+```
+
+Make matrix from splits
+
+```{r}
+cpg_list <- readRDS("cpg_list.rds")
+full_metadata <- readRDS("full_metadata.rds")
+valid_samples <- readRDS("valid_samples.rds")
+output_folder <- "splits/"
+
+male_samples <- full_metadata[full_metadata$gender=="male" | full_metadata$gender=="Male", ]$sample_id
+male_samples <- intersect(male_samples, valid_samples)
+female_samples <- full_metadata[full_metadata$gender=="female" | full_metadata$gender=="Female", ]$sample_id
+female_samples <- intersect(female_samples, valid_samples)
+
+# generateMatrix(input_folder, cpg_list, full_metadata, gender, average, output_folder)
+
+#generateMatrix("splits/", cpg_list, full_metadata, "all", TRUE, "matrix/")
+#generateMatrix("splits/", cpg_list, full_metadata, "all", FALSE, "matrix/")
+#generateMatrix("splits/", cpg_list, full_metadata, "male", TRUE, "matrix/")
+#generateMatrix("splits/", cpg_list, full_metadata, "male", FALSE, "matrix/")
+#generateMatrix("splits/", cpg_list, full_metadata, "female", TRUE, "matrix/")
+#generateMatrix("splits/", cpg_list, full_metadata, "female", FALSE, "matrix/")
+
+```
+
+
+```{r}
+library(dnaMethyAge)
+library(data.table)
+library(parallel)
+library(wateRmelon)
+library(methylclock)
+
+# TRY wateRmelon for HorvathS2013, try https://zenodo.org/records/2632938 for epiTOC2 (teschendorff)
+# use methylclock package for Wu
+
+# imported from link above
+epiTOC2 <- function(data.m,ages.v=NULL){
+    load("dataETOC2.Rd"); ## this loads the CpG information
+    cpgETOC.v <- dataETOC2.l[[2]];
+    estETOC2.m <- dataETOC2.l[[1]];
+    soloCpG.v <- dataETOC2.l[[3]];
+    ### do epiTOC
+    common.v <- intersect(rownames(data.m),cpgETOC.v);
+    print(paste("Number of represented epiTOC CpGs (max=385)=",length(common.v),sep=""));
+    map.idx <- match(common.v,rownames(data.m));
+    pcgtAge.v <- colMeans(data.m[map.idx,],na.rm=TRUE);
+    ### do epiTOC2
+    map.idx <- match(rownames(estETOC2.m),rownames(data.m));
+    rep.idx <- which(is.na(map.idx)==FALSE);
+    print(paste("Number of represented epiTOC2 CpGs (max=163)=",length(rep.idx),sep=""))
+    tmp.m <- data.m[map.idx[rep.idx],];
+    TNSC.v <- 2*colMeans(diag(1/(estETOC2.m[rep.idx,1]*(1-estETOC2.m[rep.idx,2]))) %*% (tmp.m - estETOC2.m[rep.idx,2]),na.rm=TRUE);
+    TNSC2.v <- 2*colMeans(diag(1/estETOC2.m[rep.idx,1]) %*% tmp.m,na.rm=TRUE);
+    ### do HypoClock
+    common.v <- intersect(rownames(data.m),soloCpG.v);
+    print(paste("Number of represented solo-WCGWs (max=678)=",length(common.v),sep=""));
+    map.idx <- match(common.v,rownames(data.m));
+    hypoSC.v <- colMeans(data.m[map.idx,],na.rm=TRUE);
+
+    estIR.v <- NULL; estIR2.v <- NULL;
+    estIR <- NULL;  estIR2 <- NULL;
+    if(!is.null(ages.v)){
+      estIR.v <- TNSC.v/ages.v;
+      estIR <- median(estIR.v,na.rm=TRUE);
+      estIR2.v <- TNSC2.v/ages.v;
+      estIR2 <- median(estIR2.v,na.rm=TRUE);
+    }
+
+    
+    return(list(tnsc=TNSC.v,tnsc2=TNSC2.v,irS=estIR.v,irS2=estIR2.v,irT=estIR,irT2=estIR2,pcgtAge=pcgtAge.v,hypoSC=hypoSC.v));
+}
+
+#availableClock()
+#To understand what do these clocks represent for, please refer to 'https://github.com/yiluyucheng/dnaMethyAge'.
+# [1] "HannumG2013"    "HorvathS2013"   "LevineM2018"    "ZhangQ2019"     "ShirebyG2020"   "YangZ2016"      "ZhangY2017"     "LuA2019"        "HorvathS2018"  
+#[10] "DunedinPACE"    "McEwenL2019"    "CBL_specific"   "PCGrimAge"      "PCHorvathS2013" "PCHannumG2013"  "PCHorvathS2018" "PCPhenoAge"     "CBL_common"    
+#[19] "Cortex_common"  "epiTOC2"        "BernabeuE2023c" "LuA2023p1"      "LuA2023p2"      "LuA2023p3"     
+
+# Order: HannumG2013, HorvathS2013, LevineM2018, *Wu not included, LuA2019, McEwenL2019, epiTOC2, ShirebyG2020, DunedinPACE
+
+
+
+met <- readRDS("full_metadata.rds")
+
+clock_names <- list("HannumG2013", "HorvathS2013", "LevineM2018", "LuA2019", "McEwenL2019", "epiTOC2", "ShirebyG2020", "DunedinPACE")
+
+library(readxl)
+Wu_CpGs <- read_excel("CpGsToInvestigate/aging-11-102399-s003..xlsx")
+Wu_CpGs <- Wu_CpGs[-1, ]
+Wu_CpGs <- Wu_CpGs$CpGs
+
+extractClockResults <- function(clock_name) {
+  # if (clock_name %notin% clock_names) {
+  #   print("error")
+  #   break
+  # }
+  all_results <- list()
+  for (i in 1:5) {
+    
+    temp <- fread(paste0("vert_splits/vert_split_", i, ".csv"))
+    temp <- as.data.frame(temp)
+    rownames(temp) <- temp[, 1]
+    temp[, 1] <- NULL
+    
+    info <- met[met$sample_id %in% colnames(temp), ]
+    info <- as.data.frame(info)
+    colnames(info)[1:2] <- c("Sample", "Age")
+    info <- info[, c("Sample", "Age")]
+    
+    # at least 5 non-zero values (some clocks threw errors)
+    temp <- temp[rowSums(!is.na(temp)) >= 5, ]
+    
+    if (clock_name=="HorvathS2013") {
+      bio_age <- agep(temp, method="horvath")
+      bio_age$Sample <- rownames(bio_age)
+      bio_age <- bio_age[, c(3, 1, 2)]
+    } else if (clock_name=="epiTOC2") {
+      #temp <- as.matrix(temp)
+      #bio_age <- epiTOC2(temp)
+    } else if (clock_name=="Wu") {
+      temp <- temp[rownames(temp) %in% Wu_CpGs, ] # necessary filtering done here because DNAmAge does imputation for all missing values -> too much memory
+      temp <- as.matrix(temp)
+      temp <- temp[, colMeans(is.na(temp)) <= 0.75]
+      bio_age <- DNAmAge(temp, clocks="Wu")
+      colnames(bio_age) <- c("Sample", "age")
+      
+    } else {
+      bio_age <- methyAge(temp, clock=clock_name, age_info=info, fit_method="Linear", do_plot=TRUE)
+    
+      colnames(bio_age)[colnames(bio_age) == "mAge"] <- paste0("mAge_", clock_name)
+      colnames(bio_age)[colnames(bio_age) == "Age_Acceleration"] <- paste0("AgeAcc_", clock_name)
+      bio_age <- bio_age[, c(1, 3, 4)]
+    }
+  
+    
+    all_results[[i]] <- bio_age
+  }
+  
+  res <- do.call(rbind, all_results)
+  return(res)
+}
+
+#mc_res <- extractClockResults("McEwenL2019")
+#wu_res <- extractClockResults("Wu")
+han_res <- extractClockResults("HannumG2013")
+hor_res <- extractClockResults("HorvathS2013")
+lev_res <- extractClockResults("LevineM2018")
+#bel_res <- extractClockResults("DunedinPACE") # remove because already epigenetic age acceleration
+#tesch_res <- extractClockResults("epiTOC2") # only gives mitotic divisions
+shir_res <- extractClockResults("ShirebyG2020")
+#lu_res <- extractClockResults("LuA2019") # remove because it calculates telomere length
+
+
+
+clock_res <- list("Hannum" = han_res, 
+                  "Horvath" = hor_res,
+                  "Levine" = lev_res,
+                  "Shireby" = shir_res
+)
+#saveRDS(clock_res, "clock_results.rds")
+
+# met dataframe from earlier
+
+plots <- lapply(names(clock_res), function(clock) {
+  df <- clock_res[[clock]]
+  colnames(df)[2] <- "PredictedAge"
+  
+  # merge with metadata
+  merged <- merge(df, met, by.x = "Sample", by.y = "sample_id", all.x = TRUE)
+  
+  r_val <- cor(merged$age, merged$PredictedAge, use = "complete.obs")
+  
+  x_min <- min(merged$age, na.rm = TRUE)
+  y_max <- max(merged$PredictedAge, na.rm = TRUE)
+  
+  # make plot
+  ggscatter(merged,
+            x       = "age", 
+            y       = "PredictedAge",
+            color   = "gender",
+            palette = c("male"   = MALE_COLOR,
+                        "female" = FEMALE_COLOR,
+                        "other"  = "black"),
+            add     = "none",
+            size=1,
+            alpha=0.6,
+            shape = 16
+  ) +
+    geom_abline(intercept = 0, slope = 1, linewidth=0.6, linetype = "dashed") +
+    geom_vline(xintercept=65, color="black", linewidth=0.6) + 
+    annotate("text", x = 10, y = 80,
+      label = paste0("r = ", round(r_val, 2)), color="red", fontface="bold") +
+    labs(title = clock,
+         x     = "Chronological Age",
+         y     = "Epigenetic Age") +
+    scale_x_continuous(limits = c(0, 80)) +
+    scale_y_continuous(limits = c(0, 80)) +
+    coord_fixed() +
+    theme_and_axis_legend
+})
+
+# arrange into one figure with a single legend
+supp_fig4 <- ggarrange(plotlist     = plots,
+          ncol         = 2,
+          nrow         = 2,
+          common.legend = TRUE,
+          legend       = "top")
+
+ggsave(
+  filename = "new_figs/supp_fig4.pdf", 
+  plot     = supp_fig4, 
+  width    = 8, 
+  height   = 10, 
+  dpi      = 300
+)
+
+```
+
+```{r}
+# Supp Fig 1B here, cowplot/ggarrange with Supp Fig 1A earlier
+
+set.seed(123)
+# Create split lists
+# Read desired site list
+sites <- readRDS("running_site_list.rds")
+cpg_list <- rownames(sites)
+NUMCPGSITE <- length(initial_cpg_list)
+sites_per_list <- 50000
+num_groups <- ceiling(NUMCPGSITE/sites_per_list)
+
+# Create splits
+split_lists <- vector("list", num_groups)
+for (i in 1:num_groups) {
+  start_index <- (i-1)*sites_per_list + 1
+  end_index <- min(i*sites_per_list, NUMCPGSITE)
+  split_lists[[i]] <- initial_cpg_list[start_index:end_index]
+}
+  
+
+
+plotCpG <- function(cpg_list, gender_state) {
+  plot_list2 <- list()
+  
+  # Check which split to extract from in my files
+  for (cpg_name in cpg_list) {
+    splits <- list.files(path="splits")
+    
+    # Find which split
+    num <- 0
+    for (i in 1:length(split_lists)) {
+      if (cpg_name %in% split_lists[[i]]) {
+        num <- i
+      }
+    }
+    temp <- fread(paste0("splits/split_", num, ".csv"))
+    temp <- as.data.frame(temp)
+    
+    rownames(temp) <- temp$V1
+    temp <- temp[, -c(1, 2)]
+    
+    # Filter for samples
+    # all_samples, male_samples, female_samples
+    
+    
+    temp <- temp[c("age", cpg_name), ]
+    
+    temp <- as.data.frame(t(temp))
+    
+    colnames(temp) <- c("Age", "Beta")
+    temp <- temp[temp$Age<=80, ]
+    correlation <- cor(temp$Age, temp$Beta, use="complete.obs")
+    correlation <- round(correlation, digits=2)
+    
+    a <- ggscatter(temp, x = "Age", y = "Beta", size = 1, title = cpg_name,
+                     xlab = "Age", ylab = "Beta Values", color = "lightgray", shape=16) +
+        #geom_smooth(method = "loess", color = "blue", fill = "lightblue", se = FALSE) +
+        geom_smooth(method="lm") + 
+        ylim(0, 1) +
+        xlim(0, 80) + 
+    theme_and_axis_nolegend
+    a <- a + annotate("text", x = 70, y = 1,
+      label = paste0("r = ", correlation), color="red", fontface="bold")
+    
+    plot_list2[[length(plot_list2) + 1]] <- a
+    
+    # if (save==TRUE) {
+    #   ggsave(filename = paste0("figs/", cpg_name, ".png"), plot = a, height=6, width=10, dpi = 300)
+    # }
+  }
+  return(plot_list2)
+}
+
+cpg_list <- c("cg19722847", "cg16867657", "cg09809672", "cg06144905")
+plot_list2 <- plotCpG(cpg_list, 1)
+
+arrangedPlots2 <- ggarrange(plotlist = plot_list2, ncol=2, nrow=2)
+
+print(arrangedPlots2)
+
+# clock_upset_grob from earlier in the code
+
+scatter_grid <- plot_grid(
+  plotlist = plot_list2,
+  ncol = 2, 
+  labels = NULL
+)
+
+supp_fig1 <- plot_grid(
+  clock_upset_grob,
+  scatter_grid,
+  ncol = 1,
+  rel_heights = c(0.5, 1)  # makes the UpSet plot a bit taller
+)
+
+ggsave(
+  filename = "new_figs/supp_fig1.pdf", 
+  plot     = supp_fig1, 
+  width    = 8, 
+  height   = 10, 
+  dpi      = 300
+)
+
+
+# print which clocks each of the singly-plotted cpgs are in
+test_name = "cg06144905"
+for (i in 1:length(clock_cpgs)) {
+  if (test_name %in% clock_cpgs[[i]]) {
+    print(names(clock_cpgs)[i])
+  }
+}
+```
+
+
+
+UNUSED STUFF BELOW
+
+Calculate EAAs
+
+```{r}
+library(methylCIPHER)
+
+combined_metadata <- readRDS("full_metadata.rds")
+combined_metadata <- as.data.frame(combined_metadata)
+valid_samples <- readRDS("valid_samples.rds")
+combined_metadata <- combined_metadata[combined_metadata$sample_id %in% valid_samples, ]
+combined_metadata <- combined_metadata[,c("sample_id", "age", "gender")]
+colnames(combined_metadata) <- c("Sample", "Age", "Gender")
+# Split into cohorts (different clocks applied)
+firstcohort <- combined_metadata[combined_metadata$Age<=20, ]
+secondcohort <- combined_metadata[combined_metadata$Age>20, ]
+firstsamples <- firstcohort$Sample
+secondsamples <- secondcohort$Sample
+
+# clockOptions()
+results <- data.frame()
+for (i in 1:5) {
+  temp <- fread(paste0("vert_splits/vert_split_", i, ".csv"))
+  temp <- as.data.frame(temp)
+  rownames(temp) <- temp[, 1]
+  temp <- temp[, -1]
+  
+  
+  # Calculate using PedBE for samples 0-20
+  young <- temp[colnames(temp) %in% firstsamples]
+  young <- as.matrix(t(young))
+  info <- firstcohort[firstcohort$Sample %in% rownames(young), ]
+  rownames(info) <- info[, 1]
+  info <- info[, -1]
+  EAA <- calcPEDBE(young, info, imputation=F)
+  colnames(EAA) <- c("Age", "Gender", "CalcAge")
+  
+  if (!ncol(results)) {
+    results <- EAA
+  } else {
+    results <- rbind(results, EAA)
+  }
+    
+  # Calculate using Horvath for samples 20-80
+  old <- temp[colnames(temp) %in% secondsamples]
+  old <- as.matrix(t(old))
+  info2 <- secondcohort[secondcohort$Sample %in% rownames(old), ]
+  rownames(info2) <- info2[, 1]
+  info2 <- info2[, -1]
+  EAA2 <- calcHorvath1(old, info2, imputation=F)
+  colnames(EAA2) <- c("Age", "Gender", "CalcAge")
+
+  
+  results <- rbind(results, EAA2)
+}
+
+saveRDS(results, "EAA_calculations.rds")
+```
+
+
+```{r}
+library(rstatix)
+EAA_results <- readRDS("EAA_calculations.rds")
+EAA_results <- EAA_results[!is.na(EAA_results$Gender),]
+EAA_results <- EAA_results %>%
+  mutate(Gender = case_when(
+    Gender %in% c("female", "F", "Female") ~ "Female",
+    Gender %in% c("male", "M", "Male") ~ "Male",
+    TRUE ~ NA_character_  # Handle any unexpected values or NAs
+  ))
+
+EAA_results$EAA_difference <- EAA_results$CalcAge - EAA_results$Age
+
+model <- lm(CalcAge ~ Age, data = EAA_results)
+EAA_results$EAA_residuals <- resid(model)
+#filter to be consistent
+EAA_results <- EAA_results[EAA_results$Age<=80, ]
+
+# Plot EAAs
+plot1 <- ggscatter(EAA_results, "Age", "EAA_residuals", color="Gender", shape="Gender") +
+  labs(
+    title = "EAA by Gender",
+    x = "Chronological Age",
+    y = "EAA Residuals",
+    color = "Gender",
+    shape = "Gender"
+  ) +
+  scale_color_manual(values=c("Male" = MALE_COLOR, "Female" = FEMALE_COLOR)) +
+  theme_and_axis_legend
+#ggsave("figs/EAA_by_gender.png", plot=last_plot(), dpi=300)
+
+# Define overlapping age windows
+age_windows <- data.frame(
+  window_start = seq(0, 60, by = 5),  # Start from 0, 5, 10, ..., 60
+  window_end = seq(20, 80, by = 5)    # End at 20, 25, 30, ..., 80
+)
+
+EAA_results_long <- do.call(rbind, lapply(1:nrow(age_windows), function(i) {
+  window <- age_windows[i, ]
+  
+  # Filter and mutate the window labels correctly
+  EAA_subset <- EAA_results %>%
+    filter(Age >= window$window_start & Age <= window$window_end) %>%
+    mutate(
+      window = paste0("[", window$window_start, ", ", window$window_end, "]")  # Inclusive for all windows
+    )
+  
+  return(EAA_subset)
+}))
+
+# Calculate sample sizes for each gender in each age window
+sample_sizes <- EAA_results_long %>%
+  group_by(window, Gender) %>%
+  summarise(sample_size = n(), .groups = 'drop') %>%
+  ungroup()
+
+#8637
+
+# Create a new data frame with combined labels for x-axis
+sample_sizes_wide <- sample_sizes %>%
+  pivot_wider(names_from = Gender, values_from = sample_size, values_fill = 0)  # Fill missing values with 0
+
+# Create a new data frame with combined labels for x-axis
+window_labels <- sample_sizes_wide %>%
+  mutate(
+    label = paste0(
+      window, "\n",
+      "(", Male, ", ", Female, ")"
+    )
+  ) %>%
+  dplyr::select(window, label) 
+
+# Reorder correctly
+window_labels <- window_labels[c(1, 10, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13),]
+
+# Ensure unique labels for each window
+EAA_results_long <- EAA_results_long %>%
+  left_join(window_labels, by = "window") %>%
+  mutate(label = factor(label, levels = unique(window_labels$label))) 
+
+
+# Cohen's D compares difference in means, relative to pooled SD
+cd_results <- list()
+for (i in unique(EAA_results_long$window)) {
+  temp_male <- EAA_results_long[EAA_results_long$window==i & EAA_results_long$Gender=="Male", ]
+  temp_female <- EAA_results_long[EAA_results_long$window==i & EAA_results_long$Gender=="Female", ]
+  
+  mean_male <- mean(temp_male$EAA_residuals, na.rm = TRUE)
+  mean_female <- mean(temp_female$EAA_residuals, na.rm = TRUE)
+  
+  # Print the means for sanity check
+  cat("Window:", i, "\n")
+  cat("Mean (Male):", mean_male, "\n")
+  cat("Mean (Female):", mean_female, "\n\n")
+  
+  res <- cohens_d(temp_male$EAA_residuals, temp_female$EAA_residuals)
+  cd_results[[as.character(i)]] <- res$Cohens_d  # Extract the specific value for Cohen's d
+
+}
+
+cd_results_df <- data.frame(
+  window = names(cd_results),  # Use the window names as the first column
+  d = unlist(cd_results),      # Unlist the Cohen's d values to create a numeric column
+  stringsAsFactors = FALSE     # Prevent factors, if not needed
+)
+
+# Merge with window_labels to get the proper labels for the x-axis
+cd_results_df <- cd_results_df %>%
+  left_join(window_labels, by = c("window" = "window"))
+
+# Reorder
+EAA_results_long$Gender <- factor(EAA_results_long$Gender, levels = c("Male", "Female"))
+
+
+# Plot with annotations
+plot2 <- ggplot(EAA_results_long, aes(x = label, y = EAA_residuals, fill = Gender)) +
+  geom_boxplot(position = position_dodge(width = 0.75)) +  # Position male and female side-by-side
+  scale_fill_manual(values = c("Female" = FEMALE_COLOR, "Male" = MALE_COLOR)) +  # Custom colors for clarity
+  labs(
+    title = " ",
+    x = "\nAge Window\nSample Size (Male, Female)",
+    y = "EAA",
+    fill = "Gender"
+  ) +
+  theme_and_axis_legend + 
+  theme(axis.text.x = element_text(size=6)) + #override x axis label font size
+  # Customize x-axis text to be bold
+  
+ #FIX BELOW
+  geom_text(
+    data = cd_results_df, 
+    aes(x = label, y = max(EAA_results_long$EAA_residuals, na.rm = TRUE) + 6, 
+        label = round(d, 2)),  # Format Cohen's d to 2 decimal places
+    size = 4, 
+    fontface = "bold",
+    inherit.aes = FALSE  # Prevent inheriting unwanted aesthetics
+  )
+
+plot_list <- list(plot1, plot2)
+temp <- ggarrange(plotlist = plot_list, ncol=2, nrow=1, common.legend = TRUE)
+#ggsave("figs/EAA_arrange_visualized.png", plot=last_plot(), width=12, height=5, dpi=300)
+print(temp)
+#ggsave("figs/EAA_by_gender_window.png", plot=last_plot(), width = 10, height = 6, units=c("in"), dpi=900)
+
+#rm(age_windows, cd_results, cd_results_df, EAA_results, EAA_results_long, model, sample_sizes, sample_sizes_widewindow_labels)
+```
+```{r}
+# plotting results for supp. fig 4
+
+# reference line, make sure to stratify by sex
+# include correlation coefficient/p-value
+# ggarrange to combine
+
+# for each result
+# ggscatter ( )
+
+```
+

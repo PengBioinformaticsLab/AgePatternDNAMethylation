@@ -1,0 +1,457 @@
+---
+title: "ClusteringHelpers"
+output: html_notebook
+---
+
+
+Generate heatmaps + scatterplots of each cluster
+
+```{r}
+library(ComplexHeatmap)
+library(future)
+library(future.apply)
+library(dplyr)
+library(tidyr)
+library(tibble)
+library(ggpubr)
+library(ggplotify)
+library(grid)
+library(cowplot) # needed to combine figures (only use when not solely ggplot)
+library(data.table)
+
+
+# Linear interpolation helper function
+# Fill in NAs in each row
+interpolate_na <- function(row) {
+  na_indices <- which(is.na(row))
+  non_na_indices <- which(!is.na(row))
+  
+  if (length(na_indices)==0) {
+    return(row)
+  }
+  
+  interpolated_values <- approx(non_na_indices, row[non_na_indices], xout=na_indices, method="linear", rule=2)$y
+  row[na_indices] <- interpolated_values
+  
+  return(row)
+}
+
+# Set option
+ht_opt$fast_hclust = TRUE
+# Ensure reproducibility of row_km
+set.seed(123)
+
+# param num_clusters
+# param save: save to files or not
+# param clock: use clock CpGs or selected CpGs
+# param gender_state: "all", "male", or "female", will read the according matrices
+
+mainPipeline <- function(num_clusters, save=FALSE, clock=FALSE, gender_state="all", ret, labs) {
+  
+  Sys.setenv("OBJC_DISABLE_INITIALIZE_FORK_SAFETY" = "YES") # not sure what this is doing, taken off stack overflow
+  
+  # Read appropriate matrix
+  if (gender_state=="all") {
+    B <- fread("matrix/allTRUE.csv")
+    cpg_filter <- readRDS("all_select_cpg.rds")
+  } else if (gender_state=="male") {
+    B <- fread("matrix/maleTRUE.csv")
+    cpg_filter <- readRDS("male_select_cpg.rds")
+  } else if (gender_state=="female") {
+    B <- fread("matrix/femaleTRUE.csv")
+    cpg_filter <- readRDS("female_select_cpg.rds")
+  } else {
+    print("invalid gender state")
+    break
+  }
+  
+  # reset cpg_filter to just clock sites if clock=TRUE, if not, remove clock sites from analysis
+  clock_sites <- readRDS("clock_cpgs.rds")
+  cpg_filter <- cpg_filter[cpg_filter %notin% clock_sites]
+  if (clock==TRUE) {
+    cpg_filter <- clock_sites
+  }
+  
+  # reformatting
+  B <- as.data.frame(B)
+  rownames(B) <- B[, 1]
+  B <- B[, -1]
+  
+  # Filter
+  B <- B[rownames(B) %in% cpg_filter,]
+  
+  # Scale
+  B <- t(scale(t(B)))
+  B <- as.matrix(B)
+  colnames(B) <- gsub("age_", "", colnames(B))
+  #rownames(B) <- cpg_filter
+  
+  print(paste0("CpGs investigated: ", dim(B)[1]))
+  
+  # Fill in sparse NA values using linear interpolation
+  print(paste0("Total NA: ", (sum(is.na(B)) / (dim(B)[1] * dim(B)[2]) * 100), " percent"))
+  B <- t(apply(B, 1, interpolate_na))
+  
+  scale_factor    <- 0.8     
+  heatmap_width   <- unit(10 * scale_factor,  "cm")   
+  heatmap_height  <- unit(13.5 * scale_factor, "cm")
+  
+  cluster_labels <- seq_len(num_clusters)
+
+  row_anno <- rowAnnotation(foo = anno_block(gp = gpar(col="black", fill=NA),
+        labels = cluster_labels, 
+        labels_gp = gpar(col = "black", fontsize = 7)),
+        width = unit(4, "mm"))
+  
+  # save colnames to reassign for later
+  temp_colnames <- colnames(B)
+  # set new colnames for easier visualization
+  colnames(B) <- c("0", rep("", 19), "20", rep("", 19), "40", rep("", 19), "60", rep("", 19), "80")
+  
+  
+  if (clock == TRUE) {
+      # Create the heatmap with annotation
+      print("doing clock heatmap")
+      ht <- Heatmap(B, name = " ", 
+          row_km = num_clusters,
+          row_km_repeats = 10,  # Different start points for kmeans clustering
+          show_row_names = FALSE,
+          cluster_columns = FALSE,
+          row_title = "Clock CpGs", 
+          column_title = "Ages",
+          column_title_side = "bottom",
+          column_names_gp = gpar(fontsize = 8, fontfamily = "Helvetica"),
+          column_names_rot = 0,
+          row_names_gp = gpar(fontsize = 4, fontface = "bold", fontfamily = "Helvetica"),
+          column_title_gp = gpar(fontsize = 10, fontface = "bold", fontfamily="Helvetica"),
+          row_title_gp = gpar(fontsize = 10, fontface = "bold", fontfamily="Helvetica"),
+          right_annotation = ha,
+          width = heatmap_width,   
+          height = heatmap_height,
+          left_annotation = row_anno) 
+  } else {
+      print("doing normal heatmap")
+      ht <- Heatmap(B, name = " ", 
+          row_km = num_clusters,
+          row_km_repeats = 10,  # Different start points for kmeans clustering
+          show_row_names = FALSE,
+          cluster_columns = FALSE,
+          row_title = "aaCpGs", 
+          column_title = "Ages",
+          column_title_side = "bottom",
+          column_names_gp = gpar(fontsize = 8, fontfamily = "Helvetica"),
+          column_names_rot = 0,
+          row_names_gp = gpar(fontsize = 4, fontface = "bold", fontfamily = "Helvetica"),
+          column_title_gp = gpar(fontsize = 10, fontface = "bold", fontfamily="Helvetica"),
+          row_title_gp = gpar(fontsize = 10, fontface = "bold", fontfamily="Helvetica"),
+          width = heatmap_width,   
+          height = heatmap_height,
+          left_annotation = row_anno) 
+  }
+  
+  #if (save) {
+  #  # need to fix
+  #  print("saving")
+  #  png(paste0("new_figs/", gender_state, clock, num_clusters, "heatmap.png"), width = 2400, height = 2400, units="px", res=300)
+  #}
+  
+  # Draw the heatmap
+  #ht <- draw(ht)
+  
+  p1 <- grid.grabExpr(draw(ht))
+
+  #if (save) {
+  #   dev.off()
+  #}
+  
+  #heatmap_grob <- grid::grid.grabExpr(draw(ht))
+  #heatmap_gg <- as.ggplot(heatmap_grob)
+  
+  # reassign column names
+  colnames(B) <- temp_colnames
+
+  cluster_assignments <- row_order(ht)
+  cluster_vector <- unlist(lapply(1:length(cluster_assignments), function(i) {
+    rep(i, length(cluster_assignments[[i]]))
+  }))
+  # Assign cluster indices to rows
+  B_with_clusters <- cbind(B, Cluster=cluster_vector[order(unlist(cluster_assignments))])
+  B_with_clusters <- as.data.frame(B_with_clusters)
+  
+  scatter_plots <- future_lapply(1:num_clusters, function(j) {
+    plot_cluster(j, B_with_clusters, save, gender_state, clock, num_clusters)
+  })
+  
+  if (num_clusters == 4) {
+    scatter_grid <- ggarrange(scatter_plots[[1]], scatter_plots[[2]], 
+                              scatter_plots[[3]], scatter_plots[[4]],
+                              ncol = 2, nrow = 2)
+  } else {
+    scatter_grid <- ggarrange(plotlist = scatter_plots, ncol = 2, 
+                              nrow = ceiling(num_clusters / 2))
+  }
+  
+  print(scatter_grid)
+  
+  combined_plot <- plot_grid(p1, 
+    scatter_grid, 
+    nrow = 1, rel_widths = c(2, 3), rel_heights=c(2, 1),
+    labels = labs
+  )
+  print(combined_plot)
+  if (save) {
+    ggsave(paste0("new_figs/", gender_state, clock, num_clusters, "_combined_plot.pdf"), device=cairo_pdf, plot = combined_plot, width = 15, height = 6, dpi = 300)
+  }
+  
+  #final_plot <- ggarrange(heatmap_gg, scatter_grid, ncol = 2, widths = c(2, 3))
+
+  #print(final_plot)
+  
+  #if (save) {
+  #  ggsave(filename = paste0("new_figs/", gender_state, clock, num_clusters, "_combined_plot.png"), 
+  #         plot = scatter_grid, width = 12, height = 8, dpi = 300)
+  #}
+  
+  # Below code is without parallelization
+  
+  # for (j in 1:num_clusters) {
+  #   df <- B_with_clusters[which(B_with_clusters$Cluster==j),]
+  #   df <- df[, -ncol(df)]
+  #   long_df <- df %>%
+  #     rownames_to_column(var="Sample") %>%
+  #     pivot_longer(cols=-c("Sample"), names_to="Age", values_to="Beta") %>%
+  #     mutate(Age=as.numeric(Age))
+  #   long_df <- na.omit(long_df)
+  # 
+  #   #fit <- lm(Beta ~ bs(Age, df=5), data=long_df)
+  #   #long_df$Fitted <- predict(fit)
+  #   
+  #   a <- ggscatter(long_df, x="Age", y="Beta", size=1, title=paste("Cluster", j),
+  #             xlab = "Age", ylab = "Scaled Beta Values", color="lightgray") +
+  #     #geom_line(aes(y=Fitted), color="blue") +
+  #     geom_smooth(method = "loess", color = "blue", fill = "lightblue", se = FALSE) +
+  #     #geom_smooth(method = "gam", formula = y ~ s(x, bs = "ps"), 
+  #                #color = "blue", fill = "lightblue", se = FALSE) +
+  #     ylim(-5, 5) + 
+  #     theme(plot.title = element_text(hjust = 0.5))
+  #   print(a)
+  #   if (save==TRUE) {
+  #     ggsave(filename=paste0(gender_state, clock, num_clusters, "Cluster_", j, ".png"), plot=a, dpi=300)
+  #   }
+  # }
+  if (ret=="df") {
+    return(B_with_clusters)
+  } else if (ret=="plot") {
+    return(combined_plot)
+  } else {
+    print("invalid return value")
+    return(0)
+  }
+}
+
+# Code to plot single cluster (is parallelized using future_lapply within mainPipeline)
+plot_cluster <- function(j, B_with_clusters, save, gender_state, clock, num_clusters) {
+    df <- B_with_clusters[which(B_with_clusters$Cluster == j), ]
+    df <- df[, -ncol(df)]
+    long_df <- df %>%
+      rownames_to_column(var = "Sample") %>%
+      pivot_longer(cols = -c("Sample"), names_to = "Age", values_to = "Beta") %>%
+      mutate(Age = as.numeric(Age))
+    long_df <- na.omit(long_df)
+    #long_df <- long_df[!(long_df$Age==0), ]
+    median_df <- long_df %>%
+      group_by(Age) %>%
+      summarise(Median_Beta = median(Beta))
+    
+    #loess_df <- long_df[!(long_df$Age==0), ]
+
+    print("plotting now")
+    a <- ggscatter(long_df, x = "Age", y = "Beta", size = 0.5, title = paste("Cluster", j),
+                   xlab = "Age", ylab = " ", color = "lightgray", shape=16) +
+      #geom_smooth(data = loess_df, method = "loess", color = "blue", fill = "lightblue", se = FALSE) +
+      ylim(-5, 5) +
+      geom_point(data = median_df, aes(x = Age, y = Median_Beta), color = "blue", size = 1.5) +
+      theme_and_axis_legend
+    
+    #if (save) {
+    #    ggsave(filename = paste0("new_figs/", gender_state, clock, num_clusters, "nsCluster_", j, ".png"), plot = a, height=6, width=10, dpi = 900)
+    #}
+    
+    print(a)
+    return(a)
+}
+
+```
+
+```{r}
+library(circlize)
+#Fischer's exact test
+# output p-values for every cluster for given @ param name (clock name in clock_cpgs_list)
+
+clock_cpgs_list <- list(McEwen_CpGs, Wu_CpGs, Hannum_CpGs, Horvath_CpGs, Levine_CpGs, Belsky_CpGs, Teschendorff_CpGs, Shireby_CpGs, Lu2_CpGs)
+names(clock_cpgs_list) <- c("McEwen", "Wu", "Hannum", "Horvath", "Levine", "Belsky", "Teschendorff", "Shireby", "Lu")
+
+#list1, list2, and list3 are the same structure as clock_cpgs_list, already have names set
+
+clusterEnrichment <- function(matrix_with_clusters, num_clusters, table_to_match) {
+  clusters <- lapply(1:num_clusters, function(i) rownames(matrix_with_clusters)[which(matrix_with_clusters[, ncol(matrix_with_clusters)] == i)])
+  
+
+  # PART 1: Construct contingency table for input into p-value calculator by fisher test
+  cont_table <- data.frame(
+    clusters = character(0),
+    matrix(NA, ncol = length(table_to_match), nrow = 0,
+           dimnames = list(NULL, names(table_to_match))),
+    stringsAsFactors = FALSE
+  )
+  
+  cpg_count_table <- matrix(0, nrow=num_clusters, ncol=length(table_to_match))
+  colnames(cpg_count_table) <- names(table_to_match)
+  rownames(cpg_count_table) <- paste("Cluster", 1:num_clusters)
+  
+  # cpg_count_table <- matrix(0, nrow = num_clusters, ncol = length(clock_cpgs))
+  # colnames(cpg_count_table) <- names(clock_cpgs)
+  # rownames(cpg_count_table) <- paste("Cluster", 1:num_clusters)
+  
+  for (i in 1:num_clusters) {
+    cluster_cpgs <- rownames(matrix_with_clusters)[which(matrix_with_clusters[, ncol(matrix_with_clusters)] == i)]
+    
+    cpg_counts <- sapply(table_to_match, function(x) sum(cluster_cpgs %in% x))
+    print(cpg_counts)
+    
+    # Store the cpg_counts in the cpg_count_table
+    cpg_count_table[i, ] <- cpg_counts
+
+    
+    # Create data frames for in-cluster and not-in-cluster
+    in_cluster <- data.frame(
+        clusters = paste0("In Cluster ", i),
+        t(cpg_counts),  # transpose cpg_counts to match the columns of cont_table
+        stringsAsFactors = FALSE
+    )
+    
+    not_in_cluster_counts <- sapply(1:length(table_to_match), function(j) length(table_to_match[[j]]) - cpg_counts[j])
+    not_in_cluster <- data.frame(
+        clusters = paste0("Not In Cluster ", i),
+        t(not_in_cluster_counts),  # transpose to match structure
+        stringsAsFactors = FALSE
+    )
+    
+    colnames(in_cluster) <- c("clusters", names(table_to_match))
+    colnames(not_in_cluster) <- c("clusters", names(table_to_match))
+
+    # Bind the new rows to cont_table
+    cont_table <- rbind(cont_table, in_cluster, not_in_cluster)
+  }
+
+  # PART 2: Use contingency table to extract p-values
+
+  fishers <- function(cont_table, name) {
+    p_values <- numeric(num_clusters)
+    for (i in 1:num_clusters) {
+
+      #print(paste0("investigating Split: ", name, ", Cluster: ", i))
+
+      cluster_cpgs <- rownames(matrix_with_clusters)[which(matrix_with_clusters[, ncol(matrix_with_clusters)] == i)]
+
+      in_cluster <- cont_table[2*i-1, name]
+      not_in_cluster <- cont_table[2*i, name]
+      total_in_cluster     <- length(cluster_cpgs)
+      total_not_in_cluster <- nrow(matrix_with_clusters) - total_in_cluster
+      
+      matrix_m <- matrix(c(in_cluster, total_in_cluster - in_cluster, not_in_cluster, total_not_in_cluster - not_in_cluster),
+                        nrow=2)
+  
+      #print(matrix_m)
+      
+      fisher_test <- fisher.test(matrix_m)
+      p_values[i] <- fisher_test$p.value
+
+    }
+    #print(paste0("P-values before adjustment: ", p_values))
+    adj_p <- p.adjust(p_values, method="BH")
+    #print(paste0("P-values after adjustment: ", adj_p))
+    return(adj_p)
+  }
+  
+  # get_adjusted_pvalues <- function(cont_table, clock_name, cpgs_in_cluster) {
+  #   p_values <- fischers(cont_table, clock_name, cpgs_in_cluster)
+  #   adjusted_p_values <- p.adjust(p_values, method = "BH")
+  #   return(adjusted_p_values)
+  # }
+  # Get adjusted p-values for each clock
+
+  # adjust function here to adapt to cpgs_in_cluster each time
+  adj_p_list <- lapply(names(table_to_match), function(name) fishers(cont_table, name))
+  adj_p_comb <- do.call(cbind, adj_p_list)
+  adj_p_comb <- data.frame(adj_p_comb)
+  colnames(adj_p_comb) <- names(table_to_match)
+  rownames(adj_p_comb) <- paste("Cluster", 1:num_clusters)
+
+  # PART 3: Modify format and plot
+  
+  color_map <- data.frame(matrix(NA, nrow=num_clusters, ncol=length(table_to_match)))
+
+  plot_data <- as.data.frame(cpg_count_table)
+
+  
+  # assuming plot_data and adj_p_comb have the same dimensions (they should)
+  for (i in 1:nrow(adj_p_comb)) {
+    for (j in 1:ncol(adj_p_comb)) {
+
+      # define how many stars to add
+      star <-  ""
+      if (adj_p_comb[i, j]<0.001) {
+        star = "***"
+      } else if (adj_p_comb[i, j] < 0.01) {
+        star = "**"
+      } else if (adj_p_comb[i, j] < 0.05) {
+        star = "*"
+      }
+
+      plot_data[i, j] <- paste0(plot_data[i, j], "\n", star)
+
+
+      if (cont_table[i, j+1] < sum(cont_table[, j+1])/8 &
+          adj_p_comb[i, j] < 0.05) {
+        color_map[i, j] = "#e69f9f"
+      } else if (cont_table[i, j+1] > sum(cont_table[, j+1])/8 &
+                 adj_p_comb[i, j] < 0.05) {
+        color_map[i, j] = "#9ecae1"
+      } else {
+        color_map[i, j] = "grey"
+      }
+    }
+  }
+
+  rownames(color_map) <- rownames(plot_data)
+  colnames(color_map) <- colnames(plot_data)
+
+  label_mat <- as.matrix(plot_data)
+  col_mat   <- as.matrix(color_map)
+
+  # need something to pass into Heatmap()
+  dummy_mat <- matrix(1, nrow = nrow(label_mat), ncol = ncol(label_mat),
+                    dimnames = dimnames(label_mat))
+
+  ht <- Heatmap(dummy_mat,
+    name                  = " ",              # no default legend
+    cluster_rows          = FALSE,
+    cluster_columns       = FALSE,
+    show_heatmap_legend   = FALSE,
+    column_names_gp = gpar(fontsize = 10, fontface = "bold", fontfamily = "Helvetica"),
+          row_names_gp = gpar(fontsize = 10, fontface = "bold", fontfamily = "Helvetica"),
+    cell_fun = function(j, i, x, y, width, height, fill) {
+      grid.rect(x       = x, y      = y,
+                width   = width, height = height,
+                gp      = gpar(fill = col_mat[i, j], col = NA))
+      # overlay the label text
+      grid.text(label = label_mat[i, j], x = x, y = y,
+                gp    = gpar(fontsize = 10))
+    }
+  )
+
+  return(ht)
+}
+```
+

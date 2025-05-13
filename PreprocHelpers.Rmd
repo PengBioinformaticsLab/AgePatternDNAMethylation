@@ -1,0 +1,339 @@
+---
+title: "Helper Functions"
+output: html_notebook
+---
+
+Read dataset helper functions
+
+```{r, verbose=FALSE}
+library(data.table)
+library(readxl)
+library(dplyr)
+
+xlsx_helper <- function(file_path) {
+  sheet_names <- excel_sheets(file_path)
+  beta <- lapply(sheet_names, function(sheet) {
+    as.data.table(read_excel(file_path, sheet=sheet))
+  }) %>% rbindlist()
+  
+  return(beta)
+}
+
+csv_helper <- function(file_path) {
+  beta <- fread(file_path)
+  return(beta)
+}
+```
+
+Bound dataset helper function
+
+```{r, verbose=FALSE}
+check_bounds <- function(dataset) {
+  temp <- na.omit(dataset)
+  print(all(temp<=1 & temp>=0))
+}
+
+# Some datasets are beta values, but have values below 0 and above 1 due to already-done batch correction
+limit_bounds <- function(dataset) {
+  return(pmin(pmax(dataset, 0), 1))
+}
+```
+
+Convert M to beta values helper function
+
+```{r, verbose=FALSE}
+m_to_b <- function(dataset) {
+  dataset <- apply(dataset, c(1, 2), function(m) {
+    2^m/(1+2^m)
+  })
+  return(dataset)
+} 
+```
+
+mLiftOver
+
+```{r, verbose=FALSE}
+library(sesame)
+
+# Run this before
+# sesameDataCache()
+
+liftover <- function(dataset) {
+  return(mLiftOver(dataset, "HM450", impute=F))
+}
+```
+
+metadataTracker
+
+```{r, verbose=FALSE}
+age_range <- 0:100
+
+# param updated: running metadata tracker, each age as rows, one column for each dataset, counting num samples at each age
+# param md: current metadata file being examined
+# param name: new column name in metadata tracker
+
+# output: updated metadata tracker
+# note: mostly used for examining sample distribution at each age across datasets
+
+updateMetadata <- function(updated, md, name) {
+  rounded_ages <- round(as.numeric(md$age))
+  # ensure within bounds
+  rounded_ages <- rounded_ages[rounded_ages <= 100]
+  
+  age_counts <- table(rounded_ages)
+  dataset_column <- rep(0, length(age_range))
+  names(dataset_column) <- paste0("age", age_range)
+  
+  for (age in names(age_counts)) {
+    dataset_column[paste0("age", as.integer(age))] <- age_counts[age]
+  }
+  
+  updated <- cbind(updated, dataset_column)
+  colnames(updated)[ncol(updated)] <- name
+  return(updated)
+}
+```
+
+update valid samples
+- non-NA age
+- age <= 80 (or other if threshold shifts)
+
+```{r, verbose=FALSE}
+# param valid_samples: running list of samples with non-NA and <=80 age
+# param md: current metadata file being examined
+# param age_threshold: age cutoff to be valid, set at 80 as specified before
+
+# output: updated list of valid samples
+
+updateValidSamples <- function(valid_samples, md, age_threshold) {
+  temp <- c(valid_samples, md[as.numeric(md$age) <= age_threshold, ]$sample_id)
+  return(temp)
+}
+```
+
+Make splits
+Note: I am only doing this because of computational limitations... it makes it much more tedious
+If skipping this step, pipeline can be resumed at filtering (matrix generation function relies on splits)
+
+```{r}
+library(data.table)
+
+# param cpg_list: from previous analyses, number of CpG sites present in X/total datasets, as of 1/9/25, it is 16/20 (subject to change)
+# param complete_metadata: combined metadata from all datasets: "sample_id", "age", "gender", "type", "tissue" (or cell type), "disease_status"
+# param valid_samples: all samples with non-NA or <=80 ages
+# param sites_per_list: size of splits, up to 50,000 now due to purchase of better laptop
+# param output_folder: folder to write splits to
+
+# output: none, writes N splits to project files
+
+makeSplits <- function(cpg_list, full_metadata, valid_samples, sites_per_list, output_folder) {
+  # List all preprocessed datasets
+  file_list <- list.files(path = "pp_datasets")
+  
+  NUMCPGSITE <- length(cpg_list)
+  num_groups <- ceiling(NUMCPGSITE/sites_per_list)
+  
+  # Split cpg sites
+  split_lists <- vector("list", num_groups)
+  for (i in 1:num_groups) {
+    start_index <- (i-1)*sites_per_list + 1
+    end_index <- min(i*sites_per_list, NUMCPGSITE)
+    split_lists[[i]] <- cpg_list[start_index:end_index]
+  }
+  
+  # Loop through each group of CpG sites
+  for (i in 1:length(split_lists)) {
+    template_sites <- c("age", split_lists[[i]])
+    temp <- data.frame(matrix(NA, nrow=length(template_sites), ncol=0), row.names = template_sites)
+    
+    for (j in 1:length(file_list)) {
+      df <- fread(paste0("pp_datasets/", file_list[j]))
+      print(paste0("Looking at dataset: ", file_list[j]))
+      df <- as.data.frame(df)
+      rownames(df) <- df[, 1]
+      df <- df[, -1]
+      
+      # Filter down only to sites being examined
+      df <- df[rownames(df) %in% template_sites, ]
+      
+      # Filter down to valid samples
+      df <- df[, colnames(df) %in% valid_samples]
+      
+      # format metadata to append
+      cor_metadata <- full_metadata[full_metadata$sample_id %in% colnames(df), c("sample_id", "age")]
+      cor_metadata <- t(cor_metadata)
+      colnames(cor_metadata) <- cor_metadata[1, ]
+      cor_metadata <- cor_metadata[-1, , drop=FALSE]
+      # reordering
+      cor_metadata <- cor_metadata[, colnames(df), drop=FALSE]
+      
+      df <- rbind(cor_metadata, df)
+      
+      df <- df[template_sites, , drop = FALSE]
+      
+      temp <- cbind(temp, df)
+    }
+    fwrite(temp, paste0(output_folder, "split_", i, ".csv"), row.names=TRUE)
+    rm(temp)
+    gc()
+  }
+}
+```
+
+Make matrix
+- at this point, splits are already filtered to valid sites and valid samples
+
+```{r}
+library(data.table)
+
+# param row_number: self explanatory
+# param cpg_list: row names
+# param start_age: self explanatory
+# param end_age: self explanatory
+
+# output: creates an empty matrix with CpG sites as rows and ages as columns
+
+createEmptyMatrix <- function(row_number, cpg_list, start_age, end_age) {
+  temp <- matrix(NA, nrow=row_number, ncol = end_age - start_age + 1)
+  age_range <- start_age:end_age
+  rownames(temp) <- cpg_list
+  # column names as "age_X"
+  column_names <- character(end_age - start_age + 1)
+  for (i in 1:(end_age - start_age + 1)) {
+    column_names[i] <- paste0("age_", i-1+start_age)
+  }
+  colnames(temp) <- column_names
+  return(temp)
+}
+
+# Generate overall matrix for downstream analysis
+# param input_folder: folder to read splits from
+# param cpg_list: list of desired cpgs for the matrix
+# param full_metadata: metadato to reference
+# param gender: "all", "male", or "female": specify which samples to include
+# param use_clock: only include clock CpGs or not
+# param average: if true, generate matrix of averages, if false, generate matrix of standard deviations
+# param output_folder: folder to output matrices
+
+# output: matrix for downstream analysis
+
+generateMatrix <- function(input_folder, cpg_list, full_metadata, gender, average, output_folder) {
+  list_files <- list.files(path = input_folder)
+  
+  num_rows <- length(cpg_list)
+  
+  B <- createEmptyMatrix(num_rows, cpg_list, 0, 80)
+  
+  for (i in 1:length(list_files)) {
+    temp <- fread(paste0(input_folder, list_files[i]))
+    temp <- as.data.frame(temp)
+    rownames(temp) <- temp[, 1]
+    temp <- temp[, -1]
+    
+    if (gender=="male") {
+      temp <- temp[, colnames(temp) %in% male_samples]
+    } else if (gender=="female") {
+      temp <- temp[, colnames(temp) %in% female_samples]
+    }
+    
+    print(dim(temp))
+    
+    # ensure numeric & round ages to nearest integer
+    if (all(sapply(temp, is.numeric))) {
+      print(".")
+    } else {
+      print("not all numeric")
+      break
+    }
+    temp["age", ] <- round(temp["age", ])
+    
+    ident <- rownames(temp[-1, ])   
+    
+    for (j in 0:80) {
+      # Select samples at age j
+      des_cols <- which(temp["age", ]==j)
+      
+      # Check if there are samples at age j
+      if (length(des_cols) != 0) {
+        temp2 <- temp[, des_cols]
+        
+        if (is.null(nrow(temp2)) || nrow(temp2) < 2) {
+          print(paste0("Skipping age ", j, " in Split ", i, " due to insufficient data"))
+          next
+        }
+        
+        # Remove Age Row
+        temp2 <- temp2[-1, ]
+        
+        setDT(temp2)
+        
+        # Generate averages and standard deviations at age j for vector of specified CpG sites
+        
+        if (average) {
+          average_vector <- temp2[, .(final = rowMeans(.SD, na.rm=TRUE)), by=.I]
+          average_vector <- as.data.frame(average_vector)
+          B[ident, paste0("age_", j)] <- average_vector$final
+        } else {
+          sd_vector <- temp2[, .(final = apply(.SD, 1, sd, na.rm=TRUE)), by=.I]
+          sd_vector <- as.data.frame(sd_vector)
+          B[ident, paste0("age_", j)] <- sd_vector$final
+        }
+            
+        # Logging
+        print(paste0("Processing age ", j, ", Split ", i))
+      } else {
+        print(paste0("No samples at age ", j))
+      }
+    }
+  }
+  
+  file_name <- paste0("matrix/", gender, average, ".csv")
+  fwrite(B, file_name, row.names=TRUE)
+}
+```
+
+Make vert chunks
+
+```{r}
+# Reformat splits from (50000 sites x all samples) to (all sites x 1000 samples) to ensure that samples have all available sites for EAA calculation
+file_list <- list.files(path="splits")
+
+all_data <- data.table()
+chunk_size <- 1000
+temp <- fread("splits/split_1.csv", nrows = 1)
+total_columns <- ncol(temp) - 1  # Adjust for removed first column
+num_chunks <- ceiling(total_columns / chunk_size)
+
+for (chunk_index in 1:num_chunks) {
+  chunk_data <- data.table()
+  
+  for (i in 1:length(file_list)) {
+    # Read the current file
+    temp <- fread(paste0("splits/split_", i, ".csv"))
+
+    # Remove the first row (age information)
+    temp <- temp[-1, ]
+    # Store first col (cpg identifiers)
+    first_col <- temp[, 1, drop=FALSE]
+    # Drop first col
+    temp <- temp[, -1]
+
+    # Determine the start and end columns for the current chunk
+    start_col <- (chunk_index - 1) * chunk_size + 1
+    end_col <- min(chunk_index * chunk_size, ncol(temp))
+    
+    # If the chunk is within the range of the current file, process it
+    if (start_col <= ncol(temp)) {
+      # Extract the columns for the current chunk
+      temp_chunk <- temp[, start_col:end_col, with = FALSE]
+      temp_chunk <- cbind(first_col, temp_chunk)
+      
+      # Combine the current chunk with previous file chunks
+      chunk_data <- rbindlist(list(chunk_data, temp_chunk), use.names = TRUE, fill = TRUE)
+    }
+  }
+  # Save the combined chunk data to a temporary file
+  fwrite(chunk_data, paste0("vert_splits/vert_split_", chunk_index, ".csv"))
+}
+```
+
