@@ -936,7 +936,7 @@ running_site_list <- running_site_list[!is.na(running_site_list), ]
 #cpg_list <- rownames(temp)
 
 # load clock sites and filter again
-thresholds <- seq(1, 22, by=1)
+thresholds <- seq(1, 23, by=1)
 to_plot <- sapply(thresholds, function(t) sum(running_site_list>=t, na.rm=TRUE))
 to_plot <- data.frame(`CpG Count` = to_plot, Threshold = thresholds)
 
@@ -1007,15 +1007,16 @@ combined <- ggarrange(
   h1, h2, h3, bar1, bar2, seg_bar,
   ncol   = 3, 
   nrow   = 2,
-  widths = c(1, 1),     # change to give more/less room to left vs right
-  heights= c(1, 1, 1)   # you can make the bottom row taller if needed
+  widths = c(1, 1),     
+  heights= c(1, 1, 1),
+  labels = c("A", "", "", "B", "", "C")
 )
 
 # — 5) Save —
 ggsave(
   "new_figs/supp_fig2.pdf",
   combined,
-  width  = 16,
+  width  = 17,
   height = 6,
   dpi    = 300
 )
@@ -1038,9 +1039,64 @@ saveRDS(female_samples, "female_samples.rds")
 
 Get clock sites
 ```{r}
+Hannum_CpGs <- read_excel("CpGsToInvestigate/hannum_cpgs.xlsx")
+Hannum_CpGs <- Hannum_CpGs$Marker #71
+Levine_CpGs <- read.csv("CpGsToInvestigate/levine_cpgs.csv", stringsAsFactors=FALSE)
+Levine_CpGs <- Levine_CpGs[-1, ]
+Levine_CpGs <- Levine_CpGs$CpG #513
+Horvath_CpGs <- read.csv("CpGsToInvestigate/horvath_cpgs.csv", stringsAsFactors=FALSE)
+Horvath_CpGs <- Horvath_CpGs[-(1:3), 1, drop=FALSE]
+Horvath_CpGs <- Horvath_CpGs[, 1] #353
+McEwen_CpGs <- read.csv("CpGsToInvestigate/mcewen_cpgs.csv")
+McEwen_CpGs <- McEwen_CpGs$CPG #94
+Wu_CpGs <- read_excel("CpGsToInvestigate/aging-11-102399-s003..xlsx")
+Wu_CpGs <- Wu_CpGs[-1, ]
+Wu_CpGs <- Wu_CpGs$CpGs #111
+Belsky_CpGs <- getRequiredProbes(backgroundList=FALSE)
+Belsky_CpGs <- unlist(Belsky_CpGs) #173
+load("CpGsToInvestigate/epitoc.Rd")
+Teschendorff_CpGs <- as.data.frame(dataETOC2.l[1])
+Teschendorff_CpGs <- rownames(Teschendorff_CpGs) #163
+Shireby_CpGs <- readLines("CpGsToInvestigate/CorticalClockCoefs.txt")[-1]
+Shireby_CpGs <- sapply(strsplit(Shireby_CpGs, " "), `[`, 1)
+Shireby_CpGs <- unlist(Shireby_CpGs) #347
+Lu2_CpGs <- read_excel("CpGsToInvestigate/lu2.xlsx")
+Lu2_CpGs <- rbind(colnames(Lu2_CpGs), Lu2_CpGs)
+Lu2_CpGs <- Lu2_CpGs[, 1]
+Lu2_CpGs <- as.character(Lu2_CpGs[[1]]) #140
+clock_cpgs <- list(
+  McEwen = McEwen_CpGs,
+  Wu = Wu_CpGs,
+  Hannum = Hannum_CpGs,
+  Horvath = Horvath_CpGs,
+  Levine = Levine_CpGs,
+  Belsky = Belsky_CpGs,
+  Teschendorff = Teschendorff_CpGs,
+  Shireby = Shireby_CpGs,
+  Lu = Lu2_CpGs
+)
 
-#dev.copy(png, "figs/clockcpgupset.png", width=1800, height=900, res=300)
-#dev.off()
+cpgs <- unlist(clock_cpgs)
+cpgs <- unique(cpgs) #1868 total sites
+
+print(paste0("Total Unique CpG sites from 9 clocks explored: ", length(cpgs)))
+
+#write.csv(cpgs, "7_3_overlap.csv")
+
+# Filter for clock sites in 18/23 datasets
+filtered_sites <- readRDS("clock_cpgs.rds") # filtered list of clock cpgs
+for (i in 1:length(clock_cpgs)) {
+  clock_cpgs[[i]] <- intersect(clock_cpgs[[i]], filtered_sites)
+}
+
+# UpSet plot for clock site overlap 
+# Will modify aesthetics to match when aesthetics for previous plots are finalized.
+
+m1 <- make_comb_mat(clock_cpgs, mode="distinct")
+clock_upset_grob <- grid.grabExpr({
+  grid.newpage()
+  draw(UpSet(m1, set_order = rownames(m1), pt_size = unit(1.5, "mm"), lwd=1))
+})
 ```
 
 Make Splits
@@ -1258,15 +1314,16 @@ plots <- lapply(names(clock_res), function(clock) {
 })
 
 # arrange into one figure with a single legend
-supp_fig4 <- ggarrange(plotlist     = plots,
+supp_fig5 <- ggarrange(plotlist     = plots,
           ncol         = 2,
           nrow         = 2,
           common.legend = TRUE,
-          legend       = "top")
+          legend       = "top",
+          labels="AUTO")
 
 ggsave(
-  filename = "new_figs/supp_fig4.pdf", 
-  plot     = supp_fig4, 
+  filename = "new_figs/supp_fig5.pdf", 
+  plot     = supp_fig5, 
   width    = 8, 
   height   = 10, 
   dpi      = 300
@@ -1282,7 +1339,7 @@ set.seed(123)
 # Read desired site list
 sites <- readRDS("running_site_list.rds")
 cpg_list <- rownames(sites)
-NUMCPGSITE <- length(initial_cpg_list)
+NUMCPGSITE <- length(cpg_list)
 sites_per_list <- 50000
 num_groups <- ceiling(NUMCPGSITE/sites_per_list)
 
@@ -1291,7 +1348,7 @@ split_lists <- vector("list", num_groups)
 for (i in 1:num_groups) {
   start_index <- (i-1)*sites_per_list + 1
   end_index <- min(i*sites_per_list, NUMCPGSITE)
-  split_lists[[i]] <- initial_cpg_list[start_index:end_index]
+  split_lists[[i]] <- cpg_list[start_index:end_index]
 }
   
 
@@ -1367,7 +1424,8 @@ supp_fig1 <- plot_grid(
   clock_upset_grob,
   scatter_grid,
   ncol = 1,
-  rel_heights = c(0.5, 1)  # makes the UpSet plot a bit taller
+  rel_heights = c(0.5, 1),  
+  labels = "AUTO"
 )
 
 ggsave(
@@ -1596,15 +1654,5 @@ print(temp)
 
 #rm(age_windows, cd_results, cd_results_df, EAA_results, EAA_results_long, model, sample_sizes, sample_sizes_widewindow_labels)
 ```
-```{r}
-# plotting results for supp. fig 4
 
-# reference line, make sure to stratify by sex
-# include correlation coefficient/p-value
-# ggarrange to combine
-
-# for each result
-# ggscatter ( )
-
-```
 
