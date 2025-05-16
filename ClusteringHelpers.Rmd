@@ -92,7 +92,11 @@ mainPipeline <- function(num_clusters, save=FALSE, clock=FALSE, gender_state="al
   print(paste0("Total NA: ", (sum(is.na(B)) / (dim(B)[1] * dim(B)[2]) * 100), " percent"))
   B <- t(apply(B, 1, interpolate_na))
   
-  scale_factor    <- 0.8     
+  if (!clock) {
+    scale_factor <- 0.9
+  } else {
+    scale_factor <- 0.8     
+  }
   heatmap_width   <- unit(10 * scale_factor,  "cm")   
   heatmap_height  <- unit(13.5 * scale_factor, "cm")
   
@@ -195,7 +199,7 @@ mainPipeline <- function(num_clusters, save=FALSE, clock=FALSE, gender_state="al
   
   combined_plot <- plot_grid(p1, 
     scatter_grid, 
-    nrow = 1, rel_widths = c(2, 3), rel_heights=c(2, 1),
+    nrow = 1, rel_widths = c(2, 3), rel_heights=c(2, 1), 
     labels = labs
   )
   print(combined_plot)
@@ -412,14 +416,13 @@ clusterEnrichment <- function(matrix_with_clusters, num_clusters, table_to_match
       plot_data[i, j] <- paste0(plot_data[i, j], "\n", star)
 
 
-      if (cont_table[i, j+1] < sum(cont_table[, j+1])/8 &
-          adj_p_comb[i, j] < 0.05) {
-        color_map[i, j] = "#e69f9f"
-      } else if (cont_table[i, j+1] > sum(cont_table[, j+1])/8 &
-                 adj_p_comb[i, j] < 0.05) {
-        color_map[i, j] = "#9ecae1"
+      threshold <- mean(cpg_count_table[, j])
+      if (cpg_count_table[i, j] < threshold && adj_p_comb[i, j] < 0.05) {
+        color_map[i, j] <- "#9ecae1"
+      } else if (cpg_count_table[i, j] > threshold && adj_p_comb[i, j] < 0.05) {
+        color_map[i, j] <- "#e69f9f"
       } else {
-        color_map[i, j] = "grey"
+        color_map[i, j] <- "grey"
       }
     }
   }

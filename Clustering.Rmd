@@ -47,14 +47,14 @@ ha <- rowAnnotation(
 # params: num_clusters, SAVE, CLOCK, gender
 
 # run either to save plot (for later use) or get the dataframe with clusters annotated
-non_all <- mainPipeline(4, TRUE, FALSE, "all", "df", c("C", "D"))
-clock_all <- mainPipeline(4, TRUE, TRUE, "all", "df", c("A", "B"))
-male_all <- mainPipeline(4, TRUE, FALSE, "male", "df", c("A", "B"))
-female_all <- mainPipeline(4, TRUE, FALSE, "female", "df", c("C", "D"))
+non_all <- mainPipeline(4, TRUE, FALSE, "all", "plot", c("C", "D"))
+clock_all <- mainPipeline(4, TRUE, TRUE, "all", "plot", c("A", "B"))
+male_all <- mainPipeline(4, TRUE, FALSE, "male", "plot", c("A", "B"))
+female_all <- mainPipeline(4, TRUE, FALSE, "female", "plot", c("C", "D"))
 
 # save for later for combination with enrichment stuff
-fig2a <- clock_all
 fig2b <- non_all
+fig2a <- clock_all
 
 fig5a <- male_all
 fig5b <- female_all
@@ -74,12 +74,12 @@ Determine enrichment of CpG sites in clusters
 # Run
 
 ht <- clusterEnrichment(clock_all, 4, clock_cpgs_list)
-p3 <- grid.grabExpr(draw(ht, column_title = "Cluster Enrichment by Clocks", column_title_gp = gpar(fontsize=14, fontface="bold", fontfamily="Helvetica")))
+p3 <- grid.grabExpr(draw(ht, column_title = " ", column_title_gp = gpar(fontsize=14, fontface="bold", fontfamily="Helvetica")))
 
 ht2 <- clusterEnrichment(non_all, 4, all_list)
-p4 <- grid.grabExpr(draw(ht2, column_title = "Cluster Enrichment by Windows", column_title_gp = gpar(fontsize=14, fontface="bold", fontfamily="Helvetica")))
+p4 <- grid.grabExpr(draw(ht2, column_title = " ", column_title_gp = gpar(fontsize=14, fontface="bold", fontfamily="Helvetica")))
 
-fig2c <- ggarrange(p3, p4, labels=c("E", "F"))
+fig2c <- plot_grid(p3, p4, labels=c("E", "F"), rel_widths=c(0.8, 1.2))
 ```
 
 ```{r}

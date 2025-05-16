@@ -214,7 +214,7 @@ Generate visualized filter
 m2 <- make_comb_mat(all_list, mode = "intersect")
 p1 <- grid.grabExpr({
   grid.newpage()  # start a fresh page
-  draw(UpSet(m2, set_order = rownames(m2)))
+  draw(UpSet(m2, set_order = rownames(m2), pt_size = unit(1.5, "mm"), lwd=1))
 })
 
 all_cpg   <- readRDS("all_select_cpg.rds")
@@ -233,10 +233,10 @@ p2 <- grid.grabExpr({
   draw(UpSet(m1, set_order = rownames(m1)))
 })
 
-combined_plot <- plot_grid(p1, p2, ncol = 2, labels="AUTO")
+combined_plot <- plot_grid(p1, p2, ncol = 2, rel_widths=c(1.2, 0.8), labels="AUTO")
 print(combined_plot)
 
-ggsave("new_figs/upsets.pdf", device = cairo_pdf, plot = combined_plot, width = 16, height = 4, dpi = 300)
+#ggsave("new_figs/upsets.pdf", device = cairo_pdf, plot = combined_plot, width = 16, height = 4, dpi = 300)
 
 
 # 3C scatterplots
@@ -288,9 +288,9 @@ for (window in window_columns) {
 arrangedPlots <- ggarrange(plotlist = plot_list, ncol=5, nrow=3, common.legend = TRUE, legend="top")
 arrangedPlots <- plot_grid(arrangedPlots, labels="C")
 
-all_plot <- plot_grid(combined_plot, arrangedPlots, nrow=2, rel_widths=c(1, 1), rel_heights=c(1.7, 4))
+all_plot <- plot_grid(combined_plot, arrangedPlots, nrow=2, rel_heights=c(1.9, 4))
 print(all_plot)
-ggsave("new_figs/fig3.pdf", device=cairo_pdf, plot=last_plot(), width=14, height=12, dpi=300)
+ggsave("new_figs/fig_3.pdf", device=cairo_pdf, plot=last_plot(), width=14, height=12, dpi=300)
 ```
 
 Calc overlap
@@ -310,7 +310,7 @@ female_list <- readRDS("female_list.rds")
 
 m_up <- make_comb_mat(male_list, mode="intersect")
 male_upset_grob <- grid.grabExpr({
-  ht_up <- UpSet(m_up, set_order = rownames(m_up), pt_size = unit(1.5, "mm"), lwd=1)
+  ht_up <- UpSet(m_up, set_order = rownames(m_up) )
   draw(ht_up, newpage = FALSE)
 })
 
@@ -455,86 +455,74 @@ clus2_plt <- K450[rownames(K450) %in% cluster2_cpg, ]
 clus3_plt <- K450[rownames(K450) %in% cluster3_cpg, ]
 clus4_plt <- K450[rownames(K450) %in% cluster4_cpg, ]
 
-pdf("new_figs/supp_fig3.pdf", width = 6, height = 12)
-layout(matrix(1:3, 1, 3))
+pdf("new_figs/circos_sub/circosA.pdf", width = 8, height = 6)
+lgd_points = Legend(at = c("Whole Genome CpGs"), type = "points", 
+    legend_gp = gpar(col = "blue"), title_position = "topleft", 
+    title = " ")
+lgd_points2 = Legend(at = c("Trimmed CpGs"), type = "points", 
+    legend_gp = gpar(col = "red"), title_position = "topleft", 
+    title = " ")
+lgd_points3 = Legend(at = c("All aaCpGs"), type = "points", 
+    legend_gp = gpar(col = "green"), title_position = "topleft", 
+    title = " ")
+lgd_list_vertical = packLegend(lgd_points, lgd_points2, lgd_points3)
 
-{
-  lgd_points = Legend(at = c("Whole Genome CpGs"), type = "points", 
-      legend_gp = gpar(col = "blue"), title_position = "topleft", 
-      title = " ")
-  lgd_points2 = Legend(at = c("Trimmed CpGs"), type = "points", 
-      legend_gp = gpar(col = "red"), title_position = "topleft", 
-      title = " ")
-  lgd_points3 = Legend(at = c("All aaCpGs"), type = "points", 
-      legend_gp = gpar(col = "green"), title_position = "topleft", 
-      title = " ")
-  lgd_list_vertical = packLegend(lgd_points, lgd_points2, lgd_points3)
-  
-  #png("figs/circosA.png", width = 8, height=6, units="in", res=300)
-  #p1 <- grid.grabExpr({
-    plot.new() 
-    circle_size <- unit(1, "snpc")
-    pushViewport(viewport(x = 0, y = 0.5, width = circle_size, height = circle_size,
-                            just = c("left", "center")))
-    par(omi = gridOMI(), new = TRUE)
-    # Initialize circos with ideogram for chromosomes 1-22 (hg38)
-    circos.initializeWithIdeogram(chromosome.index = paste0("chr", 1:22), species = "hg38")
-    # Plot the density tracks
-    circos.genomicDensity(M1, col = "blue", track.height = 0.1)
-    circos.genomicDensity(filtered_plt, col = "red", track.height = 0.1)
-    circos.genomicDensity(all_aaCpG_plt, col = "green", track.height = 0.1)
-    upViewport()  # exit viewport
-    # Draw the legend list on the left of the circle; adjust x/just as needed
-    draw(lgd_list_vertical, x = circle_size, just = "left")
-    
-    test <- grab_grob()
-    
-  #})
-  circos.clear()
-}
-#dev.off()
+plot.new() 
+circle_size <- unit(1, "snpc")
+pushViewport(viewport(x = 0, y = 0.5, width = circle_size, height = circle_size,
+                        just = c("left", "center")))
+par(omi = gridOMI(), new = TRUE)
+# Initialize circos with ideogram for chromosomes 1-22 (hg38)
+circos.initializeWithIdeogram(chromosome.index = paste0("chr", 1:22), species = "hg38")
+# Plot the density tracks
+circos.genomicDensity(M1, col = "blue", track.height = 0.1)
+circos.genomicDensity(filtered_plt, col = "red", track.height = 0.1)
+circos.genomicDensity(all_aaCpG_plt, col = "green", track.height = 0.1)
+upViewport()  # exit viewport
+# Draw the legend list on the left of the circle; adjust x/just as needed
+draw(lgd_list_vertical, x = circle_size, just = "left")
+
+circos.clear()
+dev.off()
 
 # Warning in par(omi = gridOMI(), new = TRUE) :
 #   calling par(new=TRUE) with no plot
 
 
+pdf("new_figs/circos_sub/circosC.pdf", width = 8, height = 6)
+lgd_points = Legend(at = c("Cluster 1 aaCpGs"), type = "points", 
+    legend_gp = gpar(col = "blue"), title_position = "topleft", 
+    title = " ")
+lgd_points2 = Legend(at = c("Cluster 2 aaCpGs"), type = "points", 
+    legend_gp = gpar(col = "red"), title_position = "topleft", 
+    title = " ")
+lgd_points3 = Legend(at = c("Cluster 3 aaCpGs"), type = "points", 
+    legend_gp = gpar(col = "green"), title_position = "topleft", 
+    title = " ")
+lgd_points4 = Legend(at = c("Cluster 4 aaCpGs"), type = "points", 
+    legend_gp = gpar(col = "purple"), title_position = "topleft", 
+    title = " ")
+lgd_list_vertical = packLegend(lgd_points, lgd_points2, lgd_points3, lgd_points4)
 
-{
-  lgd_points = Legend(at = c("Cluster 1 aaCpGs"), type = "points", 
-      legend_gp = gpar(col = "blue"), title_position = "topleft", 
-      title = " ")
-  lgd_points2 = Legend(at = c("Cluster 2 aaCpGs"), type = "points", 
-      legend_gp = gpar(col = "red"), title_position = "topleft", 
-      title = " ")
-  lgd_points3 = Legend(at = c("Cluster 3 aaCpGs"), type = "points", 
-      legend_gp = gpar(col = "green"), title_position = "topleft", 
-      title = " ")
-  lgd_points4 = Legend(at = c("Cluster 4 aaCpGs"), type = "points", 
-      legend_gp = gpar(col = "purple"), title_position = "topleft", 
-      title = " ")
-  lgd_list_vertical = packLegend(lgd_points, lgd_points2, lgd_points3, lgd_points4)
-  
-  #png("figs/circosB.png", width = 8, height=6, units="in", res=300)
-  #p2 <- grid.grabExpr({
-    plot.new()
-    circle_size <- unit(1, "snpc")
-    pushViewport(viewport(x = 0, y = 0.5, width = circle_size, height = circle_size,
-                            just = c("left", "center")))
-    par(omi = gridOMI(), new = TRUE)
-    circos.initializeWithIdeogram(chromosome.index = paste0("chr", 1:22), species = "hg38")
-    circos.genomicDensity(clus1_plt, col = "blue", track.height = 0.1)
-    circos.genomicDensity(clus2_plt, col = "red", track.height = 0.1)
-    circos.genomicDensity(clus3_plt, col = "green", track.height = 0.1)
-    circos.genomicDensity(clus4_plt, col = "purple", track.height = 0.1)
-    upViewport()
-    draw(lgd_list_vertical, x = circle_size, just = "left")
-  #})
-  circos.clear()
-}
-#dev.off()
+#png("figs/circosB.png", width = 8, height=6, units="in", res=300)
+#p2 <- grid.grabExpr({
+plot.new()
+circle_size <- unit(1, "snpc")
+pushViewport(viewport(x = 0, y = 0.5, width = circle_size, height = circle_size,
+                        just = c("left", "center")))
+par(omi = gridOMI(), new = TRUE)
+circos.initializeWithIdeogram(chromosome.index = paste0("chr", 1:22), species = "hg38")
+circos.genomicDensity(clus1_plt, col = "blue", track.height = 0.1)
+circos.genomicDensity(clus2_plt, col = "red", track.height = 0.1)
+circos.genomicDensity(clus3_plt, col = "green", track.height = 0.1)
+circos.genomicDensity(clus4_plt, col = "purple", track.height = 0.1)
+upViewport()
+draw(lgd_list_vertical, x = circle_size, just = "left")
+#})
+circos.clear()
+dev.off()
 
-
-{
+pdf("new_figs/circos_sub/circosB.pdf", width = 8, height = 6)
 lgd_points = Legend(at = c("All aaCpGs"), type = "points", 
     legend_gp = gpar(col = "blue"), title_position = "topleft", 
     title = " ")
@@ -548,28 +536,21 @@ lgd_list_vertical = packLegend(lgd_points, lgd_points2, lgd_points3)
 
 #png("figs/circosC.png", width = 8, height=6, units="in", res=300)
 #p3 <- grid.grabExpr({
-  plot.new()
-  circle_size <- unit(1, "snpc")
-  pushViewport(viewport(x = 0, y = 0.5, width = circle_size, height = circle_size,
-                          just = c("left", "center")))
-  par(omi = gridOMI(), new = TRUE)
-  circos.initializeWithIdeogram(chromosome.index = paste0("chr", 1:22), species = "hg38")
-  circos.genomicDensity(all_aaCpG_plt, col = "blue", track.height = 0.1)
-  circos.genomicDensity(male_aaCpG_plt, col = "red", track.height = 0.1)
-  circos.genomicDensity(female_aaCpG_plt, col = "green", track.height = 0.1)
-  upViewport()
-  draw(lgd_list_vertical, x = circle_size, just = "left")
-#})
-
+plot.new()
+circle_size <- unit(1, "snpc")
+pushViewport(viewport(x = 0, y = 0.5, width = circle_size, height = circle_size,
+                        just = c("left", "center")))
+par(omi = gridOMI(), new = TRUE)
+circos.initializeWithIdeogram(chromosome.index = paste0("chr", 1:22), species = "hg38")
+circos.genomicDensity(all_aaCpG_plt, col = "blue", track.height = 0.1)
+circos.genomicDensity(male_aaCpG_plt, col = "red", track.height = 0.1)
+circos.genomicDensity(female_aaCpG_plt, col = "green", track.height = 0.1)
+upViewport()
+draw(lgd_list_vertical, x = circle_size, just = "left")
 circos.clear()
-}
 dev.off()
 
-# combine into single using cowplot
-
-combined_plot <- plot_grid(p1, p2, p3, ncol=1)
-print(combined_plot)
-ggsave("new_figs/circos_all.pdf", device=cairo_pdf, plot = combined_plot, dpi = 300)
+# manually combine
 ```
 
 ```{r}
