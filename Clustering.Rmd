@@ -47,10 +47,10 @@ ha <- rowAnnotation(
 # params: num_clusters, SAVE, CLOCK, gender
 
 # run either to save plot (for later use) or get the dataframe with clusters annotated
-non_all <- mainPipeline(4, TRUE, FALSE, "all", "plot", c("C", "D"))
-clock_all <- mainPipeline(4, TRUE, TRUE, "all", "plot", c("A", "B"))
-male_all <- mainPipeline(4, TRUE, FALSE, "male", "plot", c("A", "B"))
-female_all <- mainPipeline(4, TRUE, FALSE, "female", "plot", c("C", "D"))
+non_all <- mainPipeline(4, TRUE, FALSE, "all", "df", c("C", "D"))
+clock_all <- mainPipeline(4, TRUE, TRUE, "all", "df", c("A", "B"))
+male_all <- mainPipeline(4, TRUE, FALSE, "male", "df", c("A", "B"))
+female_all <- mainPipeline(4, TRUE, FALSE, "female", "df", c("C", "D"))
 
 # save for later for combination with enrichment stuff
 fig2b <- non_all

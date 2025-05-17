@@ -45,6 +45,7 @@ library(gridExtra)
 library(ggpubr)
 library(grid)
 library(ggplot2)
+# supp fig. 3
 # new figure -> 3 rows, 13 columns
 
 # what do we want? input all_results, male_results, female_results, output a figure with 3 rows and 13 columns, 
@@ -102,7 +103,9 @@ make_scatter <- function(res_df, sel_vec, window_label, clock_cpgs) {
          x     = " ",
          y     = " ",
          color = "Group") +
-    theme_and_axis_legend
+    theme_and_axis_legend + theme(
+    plot.margin = unit(c(0,0,0,0), "cm")
+  )
   return(a)
 }
 
@@ -118,29 +121,53 @@ for (i in seq_along(age_windows)) {
   plots_female[[i]] <- make_scatter(female_results, female_list[[w]], w, clock_cpgs)
 }
 
+legend_grob <- get_legend(
+  plots_all[[1]] +
+    theme(legend.position = "top",
+          legend.title    = element_text(size=10),
+          legend.text     = element_text(size=8))
+)
+
 arranged_all <- ggarrange(plotlist = plots_all,
-                          common.legend=TRUE,
-                          legend = "top",
-                          ylab = " ",
-                          xlab = " ",
+                          #common.legend=TRUE,
+                          legend = "none",
+                          ylab = NULL,
+                          xlab = NULL,
                           ncol = 1)
 arranged_male <- ggarrange(plotlist = plots_male,
                           common.legend=TRUE,
-                          legend = "top",
-                          ylab = " ",
-                          xlab = " ",
+                          legend = "none",
+                          ylab = NULL,
+                          xlab = NULL,
                           ncol = 1)
 arranged_female <- ggarrange(plotlist = plots_female,
                           common.legend=TRUE,
-                          legend = "top",
-                          ylab = " ",
-                          xlab = " ",
+                          legend = "none",
+                          ylab = NULL,
+                          xlab = NULL,
                           ncol = 1)
 
-all_plot <- plot_grid(arranged_all, arranged_male, arranged_female, ncol=3, labels="AUTO")
+panel_grid <- plot_grid(
+  arranged_all, arranged_male, arranged_female,
+  ncol   = 3,
+  labels = "AUTO",
+  align  = "v"
+)
 
-# can't seem to combine these???
-# another problem: blue dots seem to disappear when combining all 3 columns... idk
+# 4) stack the legend on top of that grid
+final_plot <- plot_grid(
+  legend_grob, panel_grid,
+  ncol        = 1,
+  rel_heights = c(0.05, 1)   # tweak 0.05 up/down to change legend vs. panel space
+)
+
+# 5) save
+ggsave("new_figs/supp_fig3.png",
+       final_plot,
+       width  = 9,
+       height = 30,
+       units  = "in",
+       dpi    = 300)
 
 
 # extra annotation needed on final figure
@@ -406,10 +433,10 @@ library(circlize)
 library(ggplotify)
 library(gridGraphics)
 
-grab_grob <- function() {
-  grid.echo()
-  grid.grab()
-}
+# grab_grob <- function() {
+#   grid.echo()
+#   grid.grab()
+# }
 
 # fig 4 here -> upset plots are not saving properly??
 
@@ -455,33 +482,31 @@ clus2_plt <- K450[rownames(K450) %in% cluster2_cpg, ]
 clus3_plt <- K450[rownames(K450) %in% cluster3_cpg, ]
 clus4_plt <- K450[rownames(K450) %in% cluster4_cpg, ]
 
-pdf("new_figs/circos_sub/circosA.pdf", width = 8, height = 6)
+pdf("new_figs/circos_sub/circosA.pdf", width = 6, height = 7)
 lgd_points = Legend(at = c("Whole Genome CpGs"), type = "points", 
     legend_gp = gpar(col = "blue"), title_position = "topleft", 
     title = " ")
-lgd_points2 = Legend(at = c("Trimmed CpGs"), type = "points", 
+lgd_points2 = Legend(at = c("Investigated CpGs"), type = "points", 
     legend_gp = gpar(col = "red"), title_position = "topleft", 
     title = " ")
 lgd_points3 = Legend(at = c("All aaCpGs"), type = "points", 
     legend_gp = gpar(col = "green"), title_position = "topleft", 
     title = " ")
-lgd_list_vertical = packLegend(lgd_points, lgd_points2, lgd_points3)
+lgd_list = packLegend(lgd_points, lgd_points2, lgd_points3)
 
 plot.new() 
 circle_size <- unit(1, "snpc")
 pushViewport(viewport(x = 0, y = 0.5, width = circle_size, height = circle_size,
-                        just = c("left", "center")))
-par(omi = gridOMI(), new = TRUE)
+                        just = "center"))
+par(omi = c(0.5, 0.5, 0.5, 0.5), new = TRUE)
 # Initialize circos with ideogram for chromosomes 1-22 (hg38)
 circos.initializeWithIdeogram(chromosome.index = paste0("chr", 1:22), species = "hg38")
 # Plot the density tracks
 circos.genomicDensity(M1, col = "blue", track.height = 0.1)
 circos.genomicDensity(filtered_plt, col = "red", track.height = 0.1)
 circos.genomicDensity(all_aaCpG_plt, col = "green", track.height = 0.1)
-upViewport()  # exit viewport
-# Draw the legend list on the left of the circle; adjust x/just as needed
-draw(lgd_list_vertical, x = circle_size, just = "left")
-
+upViewport()
+draw(lgd_list, x = unit(0.5, "npc"), y = unit(0.05, "npc"), just = "bottom")
 circos.clear()
 dev.off()
 
@@ -489,7 +514,7 @@ dev.off()
 #   calling par(new=TRUE) with no plot
 
 
-pdf("new_figs/circos_sub/circosC.pdf", width = 8, height = 6)
+pdf("new_figs/circos_sub/circosC.pdf", width = 6, height = 7)
 lgd_points = Legend(at = c("Cluster 1 aaCpGs"), type = "points", 
     legend_gp = gpar(col = "blue"), title_position = "topleft", 
     title = " ")
@@ -502,7 +527,7 @@ lgd_points3 = Legend(at = c("Cluster 3 aaCpGs"), type = "points",
 lgd_points4 = Legend(at = c("Cluster 4 aaCpGs"), type = "points", 
     legend_gp = gpar(col = "purple"), title_position = "topleft", 
     title = " ")
-lgd_list_vertical = packLegend(lgd_points, lgd_points2, lgd_points3, lgd_points4)
+lgd_list = packLegend(lgd_points, lgd_points2, lgd_points3, lgd_points4)
 
 #png("figs/circosB.png", width = 8, height=6, units="in", res=300)
 #p2 <- grid.grabExpr({
@@ -510,19 +535,18 @@ plot.new()
 circle_size <- unit(1, "snpc")
 pushViewport(viewport(x = 0, y = 0.5, width = circle_size, height = circle_size,
                         just = c("left", "center")))
-par(omi = gridOMI(), new = TRUE)
+par(omi = c(0.5, 0.5, 0.5, 0.5), new = TRUE)
 circos.initializeWithIdeogram(chromosome.index = paste0("chr", 1:22), species = "hg38")
 circos.genomicDensity(clus1_plt, col = "blue", track.height = 0.1)
 circos.genomicDensity(clus2_plt, col = "red", track.height = 0.1)
 circos.genomicDensity(clus3_plt, col = "green", track.height = 0.1)
 circos.genomicDensity(clus4_plt, col = "purple", track.height = 0.1)
 upViewport()
-draw(lgd_list_vertical, x = circle_size, just = "left")
-#})
+draw(lgd_list, x = unit(0.5, "npc"), y = unit(0.02, "npc"), just = "bottom")
 circos.clear()
 dev.off()
 
-pdf("new_figs/circos_sub/circosB.pdf", width = 8, height = 6)
+pdf("new_figs/circos_sub/circosB.pdf", width = 6, height = 7)
 lgd_points = Legend(at = c("All aaCpGs"), type = "points", 
     legend_gp = gpar(col = "blue"), title_position = "topleft", 
     title = " ")
@@ -532,21 +556,21 @@ lgd_points2 = Legend(at = c("Male aaCpGs"), type = "points",
 lgd_points3 = Legend(at = c("Female aaCpGs"), type = "points", 
     legend_gp = gpar(col = "green"), title_position = "topleft", 
     title = " ")
-lgd_list_vertical = packLegend(lgd_points, lgd_points2, lgd_points3)
+lgd_list = packLegend(lgd_points, lgd_points2, lgd_points3)
 
 #png("figs/circosC.png", width = 8, height=6, units="in", res=300)
 #p3 <- grid.grabExpr({
 plot.new()
 circle_size <- unit(1, "snpc")
-pushViewport(viewport(x = 0, y = 0.5, width = circle_size, height = circle_size,
-                        just = c("left", "center")))
-par(omi = gridOMI(), new = TRUE)
+pushViewport(viewport(x = 0.5, y = 0.7, width = circle_size, height = circle_size,
+                        just = "center"))
+par(omi = c(0.5, 0.5, 0.5, 0.5), new = TRUE)
 circos.initializeWithIdeogram(chromosome.index = paste0("chr", 1:22), species = "hg38")
 circos.genomicDensity(all_aaCpG_plt, col = "blue", track.height = 0.1)
 circos.genomicDensity(male_aaCpG_plt, col = "red", track.height = 0.1)
 circos.genomicDensity(female_aaCpG_plt, col = "green", track.height = 0.1)
 upViewport()
-draw(lgd_list_vertical, x = circle_size, just = "left")
+draw(lgd_list, x = unit(0.5, "npc"), y = unit(0.05, "npc"), just = "bottom")
 circos.clear()
 dev.off()
 
