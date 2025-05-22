@@ -951,7 +951,7 @@ bar1 <- ggbarplot(to_plot, x="Threshold", y="CpG.Count", fill="#4682B4",
 to_plot2 <- sapply(thresholds, function(t) sum(list_2>=t, na.rm=TRUE))
 to_plot2 <- data.frame(`CpG Count` = to_plot2, Threshold = thresholds)
 
-bar2 <- ggbarplot(to_plot, x="Threshold", y="CpG.Count", fill="#4682B4", 
+bar2 <- ggbarplot(to_plot2, x="Threshold", y="CpG.Count", fill="#4682B4", 
           title="1868 Clock CpGs Present Across Datasets") +
   theme_and_axis_nolegend
 

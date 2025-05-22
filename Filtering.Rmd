@@ -105,7 +105,9 @@ make_scatter <- function(res_df, sel_vec, window_label, clock_cpgs) {
          color = "Group") +
     theme_and_axis_legend + theme(
     plot.margin = unit(c(0,0,0,0), "cm")
-  )
+  ) +
+    xlim(-1, 1) + 
+    ylim(0, 0.8)
   return(a)
 }
 
@@ -121,12 +123,12 @@ for (i in seq_along(age_windows)) {
   plots_female[[i]] <- make_scatter(female_results, female_list[[w]], w, clock_cpgs)
 }
 
-legend_grob <- get_legend(
-  plots_all[[1]] +
-    theme(legend.position = "top",
-          legend.title    = element_text(size=10),
-          legend.text     = element_text(size=8))
-)
+# legend_grob <- get_legend(
+#   plots_all[[1]] +
+#     theme(legend.position = "top",
+#           legend.title    = element_text(size=10),
+#           legend.text     = element_text(size=8))
+# )
 
 arranged_all <- ggarrange(plotlist = plots_all,
                           #common.legend=TRUE,
@@ -135,63 +137,28 @@ arranged_all <- ggarrange(plotlist = plots_all,
                           xlab = NULL,
                           ncol = 1)
 arranged_male <- ggarrange(plotlist = plots_male,
-                          common.legend=TRUE,
+                          #common.legend=TRUE,
                           legend = "none",
                           ylab = NULL,
                           xlab = NULL,
                           ncol = 1)
 arranged_female <- ggarrange(plotlist = plots_female,
-                          common.legend=TRUE,
+                          #common.legend=TRUE,
                           legend = "none",
                           ylab = NULL,
                           xlab = NULL,
                           ncol = 1)
 
+
 panel_grid <- plot_grid(
   arranged_all, arranged_male, arranged_female,
   ncol   = 3,
   labels = "AUTO",
-  align  = "v"
+  align  = "v",
+  label_y = 0.869
 )
 
-# 4) stack the legend on top of that grid
-final_plot <- plot_grid(
-  legend_grob, panel_grid,
-  ncol        = 1,
-  rel_heights = c(0.05, 1)   # tweak 0.05 up/down to change legend vs. panel space
-)
-
-# 5) save
-ggsave("new_figs/supp_fig3.png",
-       final_plot,
-       width  = 9,
-       height = 30,
-       units  = "in",
-       dpi    = 300)
-
-
-# extra annotation needed on final figure
-row_labels <- grobTree(
-  textGrob("All",    x = unit(0.22,   "npc"), y = unit(0.5, "npc"),
-           rot = 0, gp = gpar(fontsize=12, fontface="bold")),
-  textGrob("Male",   x = unit(0.55,   "npc"), y = unit(0.5, "npc"),
-           rot = 0, gp = gpar(fontsize=12, fontface="bold")),
-  textGrob("Female", x = unit(0.88,   "npc"), y = unit(0.5, "npc"),
-           rot = 0, gp = gpar(fontsize=12, fontface="bold"))
-)
-
-combined <- as_ggplot(arrangeGrob(row_labels, all_plot,
-                        nrow   = 2,
-                        heights = c(1, 40)))
-
-
-# will need manual conversion to pdf
-ggsave("new_figs/supp_fig3.png",
-       plot=combined,
-       width=8,
-       height=30,
-       dpi=300)
-
+ggsave("new_figs/supp_fig3.png", panel_grid, width=9, height=30, dpi=300)
 
 ```
 
