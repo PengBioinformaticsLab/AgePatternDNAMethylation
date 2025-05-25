@@ -3,18 +3,6 @@ title: "Pre-Processing"
 output: html_notebook
 ---
 
-```{r}
-# load any extra packages needed here
-# packages loaded concordantly in HelperFunctions.Rmd
-```
-
-```{r}
-# Read standard CpG site list to be used (not until matrix has been generated then filtered)
-ann <- read.table("HM450.hg38.manifest.tsv", sep="\t", header=TRUE, quote="", comment.char="", fileEncoding = "UTF-8")
-standard_cpg_list <- ann$probeID
-```
-
-
 - One by one -> keep track in notebook
 
 Start from scratch (datasets directly from OneDrive) 
@@ -832,47 +820,6 @@ saveRDS(metadata_tracker, "metadata_tracker.rds")
 saveRDS(running_site_list, "running_site_list.rds")
 ```
 
-Set ggplot parameters
-
-```{r}
-theme_set(theme_pubr())
-MALE_COLOR <- "#ADD8E6"
-FEMALE_COLOR <- "#FFB6C1"
-ALL_COLOR <- "black"
-
-# theme_and_axis_nolegend <- theme(
-#     legend.position = "none",       
-#     text = element_text(face = "bold"), 
-#     axis.title = element_text(face = "bold", size=30), 
-#     axis.text = element_text(face = "bold", size=20),  
-#     plot.title = element_text(face = "bold", hjust=0.5, size=40),  
-#     plot.subtitle = element_text(face = "bold") 
-#   )
-
-theme_and_axis_nolegend <- theme(
-    legend.position = "none",       
-    text = element_text(face = "bold"), 
-    axis.title = element_text(face = "bold"), 
-    axis.text = element_text(face = "bold"),  
-    plot.title = element_text(face = "bold", hjust=0.5),  
-    plot.subtitle = element_text(face = "bold") 
-  )
-
-theme_and_axis_legend <- theme(
-    legend.position = "right",        
-    text = element_text(face = "bold"), 
-    axis.title = element_text(face = "bold"), 
-    axis.text = element_text(face = "bold"),  
-    plot.title = element_text(face = "bold", hjust = 0.5),  
-    plot.subtitle = element_text(face = "bold"),
-    legend.text = element_text(face = "bold"),
-      legend.box.background = element_rect(color = "black"),
-      theme(legend.key.size = unit(10, "cm")), # not too sure how this works
-    legend.title = element_text(size = 12, face = "bold", hjust = 0.5, family="Helvetica")
-)
-```
-
-
 Generate age distribution figures
 
 ```{r}
@@ -882,11 +829,8 @@ Generate age distribution figures
 # C: Segmented bar plot showing sample distribution at each age between datasets
 
 # from last chunk: metadata_tracker & running_site_list
-library(RColorBrewer)
-library(ggplot2)
-library(ggpubr)
-library(gridGraphics)
-library(tidyr)
+metadata_tracker <- readRDS("metadata_tracker.rds")
+running_site_list <- readRDS("running_site_list.rds")
 
 MALE_COLOR <- "#ADD8E6"
 FEMALE_COLOR <- "#FFB6C1"
@@ -940,14 +884,14 @@ thresholds <- seq(1, 23, by=1)
 to_plot <- sapply(thresholds, function(t) sum(running_site_list>=t, na.rm=TRUE))
 to_plot <- data.frame(`CpG Count` = to_plot, Threshold = thresholds)
 
-# Plot
+# Plot 450K CpGs
 bar1 <- ggbarplot(to_plot, x="Threshold", y="CpG.Count", fill="#4682B4", 
           title="All 450K CpGs Present Across Datasets") +
   theme_and_axis_nolegend
 
 # clock_cpgs can be found below this chunk
 
-# list_2
+# Plot Clock CpGs
 to_plot2 <- sapply(thresholds, function(t) sum(list_2>=t, na.rm=TRUE))
 to_plot2 <- data.frame(`CpG Count` = to_plot2, Threshold = thresholds)
 
@@ -956,22 +900,9 @@ bar2 <- ggbarplot(to_plot2, x="Threshold", y="CpG.Count", fill="#4682B4",
   theme_and_axis_nolegend
 
 
-
-#ggsave("figs/cpgpresencebarplot.png", plot=last_plot(), dpi=900, width=10, height=6)
-
-# Filter again for some reason.. some issues with prev subsetting
-#cpg_list <- intersect(cpg_list, standard_cpg_list)
-
-#saveRDS(cpg_list, "cpg_list.rds")
-
-
-
-
-md_tracker <- readRDS("metadata_tracker.rds")
-
 coul <- colorRampPalette(brewer.pal(8, "Set3"))(23)
 
-data_percentage <- apply(md_tracker, 1, function(x) {x*100/sum(x, na.rm=T)})
+data_percentage <- apply(metadata_tracker, 1, function(x) {x*100/sum(x, na.rm=T)})
 data_percentage <- data_percentage[, 1:81]
 
 #png(filename="new_figs/percenthistogram.png", width = 10, height = 6, units="in", res=300)
@@ -998,7 +929,8 @@ seg_bar <- ggbarplot(
   labs(x = "Age", y = "Percentage") +
   theme_and_axis_nolegend
 
-# Supp. fig 2
+# Arrange everything together
+
 h1 <- histogram_list[[1]]
 h2 <- histogram_list[[2]]
 h3 <- histogram_list[[3]]
@@ -1032,71 +964,8 @@ full_metadata <- readRDS("full_metadata.rds")
 male_samples <- full_metadata[full_metadata$gender == "male" | full_metadata$gender == "Male", ]$sample_id
 female_samples <- full_metadata[full_metadata$gender == "female" | full_metadata$gender == "Female", ]$sample_id
 
-saveRDS(male_samples, "male_samples.rds")
-saveRDS(female_samples, "female_samples.rds")
-```
-
-
-Get clock sites
-```{r}
-Hannum_CpGs <- read_excel("CpGsToInvestigate/hannum_cpgs.xlsx")
-Hannum_CpGs <- Hannum_CpGs$Marker #71
-Levine_CpGs <- read.csv("CpGsToInvestigate/levine_cpgs.csv", stringsAsFactors=FALSE)
-Levine_CpGs <- Levine_CpGs[-1, ]
-Levine_CpGs <- Levine_CpGs$CpG #513
-Horvath_CpGs <- read.csv("CpGsToInvestigate/horvath_cpgs.csv", stringsAsFactors=FALSE)
-Horvath_CpGs <- Horvath_CpGs[-(1:3), 1, drop=FALSE]
-Horvath_CpGs <- Horvath_CpGs[, 1] #353
-McEwen_CpGs <- read.csv("CpGsToInvestigate/mcewen_cpgs.csv")
-McEwen_CpGs <- McEwen_CpGs$CPG #94
-Wu_CpGs <- read_excel("CpGsToInvestigate/aging-11-102399-s003..xlsx")
-Wu_CpGs <- Wu_CpGs[-1, ]
-Wu_CpGs <- Wu_CpGs$CpGs #111
-Belsky_CpGs <- getRequiredProbes(backgroundList=FALSE)
-Belsky_CpGs <- unlist(Belsky_CpGs) #173
-load("CpGsToInvestigate/epitoc.Rd")
-Teschendorff_CpGs <- as.data.frame(dataETOC2.l[1])
-Teschendorff_CpGs <- rownames(Teschendorff_CpGs) #163
-Shireby_CpGs <- readLines("CpGsToInvestigate/CorticalClockCoefs.txt")[-1]
-Shireby_CpGs <- sapply(strsplit(Shireby_CpGs, " "), `[`, 1)
-Shireby_CpGs <- unlist(Shireby_CpGs) #347
-Lu2_CpGs <- read_excel("CpGsToInvestigate/lu2.xlsx")
-Lu2_CpGs <- rbind(colnames(Lu2_CpGs), Lu2_CpGs)
-Lu2_CpGs <- Lu2_CpGs[, 1]
-Lu2_CpGs <- as.character(Lu2_CpGs[[1]]) #140
-clock_cpgs <- list(
-  McEwen = McEwen_CpGs,
-  Wu = Wu_CpGs,
-  Hannum = Hannum_CpGs,
-  Horvath = Horvath_CpGs,
-  Levine = Levine_CpGs,
-  Belsky = Belsky_CpGs,
-  Teschendorff = Teschendorff_CpGs,
-  Shireby = Shireby_CpGs,
-  Lu = Lu2_CpGs
-)
-
-cpgs <- unlist(clock_cpgs)
-cpgs <- unique(cpgs) #1868 total sites
-
-print(paste0("Total Unique CpG sites from 9 clocks explored: ", length(cpgs)))
-
-#write.csv(cpgs, "7_3_overlap.csv")
-
-# Filter for clock sites in 18/23 datasets
-filtered_sites <- readRDS("clock_cpgs.rds") # filtered list of clock cpgs
-for (i in 1:length(clock_cpgs)) {
-  clock_cpgs[[i]] <- intersect(clock_cpgs[[i]], filtered_sites)
-}
-
-# UpSet plot for clock site overlap 
-# Will modify aesthetics to match when aesthetics for previous plots are finalized.
-
-m1 <- make_comb_mat(clock_cpgs, mode="distinct")
-clock_upset_grob <- grid.grabExpr({
-  grid.newpage()
-  draw(UpSet(m1, set_order = rownames(m1), pt_size = unit(1.5, "mm"), lwd=1))
-})
+#saveRDS(male_samples, "male_samples.rds")
+#saveRDS(female_samples, "female_samples.rds")
 ```
 
 Make Splits
@@ -1138,12 +1007,6 @@ female_samples <- intersect(female_samples, valid_samples)
 
 
 ```{r}
-library(dnaMethyAge)
-library(data.table)
-library(parallel)
-library(wateRmelon)
-library(methylclock)
-
 # TRY wateRmelon for HorvathS2013, try https://zenodo.org/records/2632938 for epiTOC2 (teschendorff)
 # use methylclock package for Wu
 
@@ -1192,13 +1055,10 @@ epiTOC2 <- function(data.m,ages.v=NULL){
 
 # Order: HannumG2013, HorvathS2013, LevineM2018, *Wu not included, LuA2019, McEwenL2019, epiTOC2, ShirebyG2020, DunedinPACE
 
-
-
 met <- readRDS("full_metadata.rds")
 
 clock_names <- list("HannumG2013", "HorvathS2013", "LevineM2018", "LuA2019", "McEwenL2019", "epiTOC2", "ShirebyG2020", "DunedinPACE")
 
-library(readxl)
 Wu_CpGs <- read_excel("CpGsToInvestigate/aging-11-102399-s003..xlsx")
 Wu_CpGs <- Wu_CpGs[-1, ]
 Wu_CpGs <- Wu_CpGs$CpGs
@@ -1445,7 +1305,6 @@ for (i in 1:length(clock_cpgs)) {
   }
 }
 ```
-
 
 
 UNUSED STUFF BELOW

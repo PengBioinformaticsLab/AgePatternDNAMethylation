@@ -41,10 +41,6 @@ female_list <- convert_to_list_format(female_sig_counts)
 ```
 
 ```{r}
-library(gridExtra)
-library(ggpubr)
-library(grid)
-library(ggplot2)
 # supp fig. 3
 # new figure -> 3 rows, 13 columns
 
@@ -291,8 +287,6 @@ Calc overlap
 
 ```{r}
 # supp fig 3 here
-library(ComplexHeatmap)
-library(cowplot)
 
 #all_list
 #male_list
@@ -343,63 +337,7 @@ running_list <- unique(running_list)
 print(length(running_list))
 ```
 
-
-Create dot plot visualizing filter amounts
-
 ```{r}
-to_plot <- data.frame(
-  Window = factor(rep(c("[0-20]", "[5-25]", "[10-30]", 
-                        "[15-35]", "[20-40]", "[25-45]", 
-                        "[30-50]", "[35-55]", "[40-60]", 
-                        "[45-65]", "[50-70]", "[55-75]", 
-                        "[60-80]"), each=3), 
-                  levels = c("[0-20]", "[5-25]", "[10-30]", 
-                            "[15-35]", "[20-40]", "[25-45]", 
-                            "[30-50]", "[35-55]", "[40-60]", 
-                            "[45-65]", "[50-70]", "[55-75]", 
-                            "[60-80]")),
-  Group = rep(c("All aaCpGs", "Male aaCpGs", "Female aaCpGs"), times=13),
-  Count = c(485, 1237, 498,
-            13106, 20693, 5539,
-            6957, 2981, 5048,
-            212, 100, 522,
-            702, 1339, 301,
-            100, 100, 100,
-            100, 100, 100,
-            100, 100, 100,
-            100, 100, 100,
-            100, 100, 100,
-            1655, 472, 978,
-            4617, 8410, 2463,
-            1718, 9662, 979)
-)
-
-ggdotplot(to_plot, x = "Window", y = "Count", fill="Group", color="Group") +
-  geom_line(aes(group = Group, color = Group)) +
-  theme_and_axis_legend
-
-ggline(
-  data = to_plot,
-  x = "Window",
-  y = "Count",
-  color = "Group",
-  group = "Group",
-  add = "dotplot"   
-) + 
-  theme_and_axis_legend
-ggsave("new_figs/filter_dotplot.png", plot=last_plot(), width=10, height = 3, dpi=300)
-```
-
-```{r}
-View(clock_cpgs)
-```
-
-```{r}
-library(gridBase)
-library(circlize)
-library(ggplotify)
-library(gridGraphics)
-
 # grab_grob <- function() {
 #   grid.echo()
 #   grid.grab()
@@ -544,29 +482,51 @@ dev.off()
 # manually combine
 ```
 
+Unused Below
+
+Create dot plot visualizing filter amounts
+
 ```{r}
-p1_grob <- grid.grabExpr({
-  plot.new()
-  circle_size <- unit(1, "snpc")
-  pushViewport(viewport(x = 0, y = 0.5,
-                        width = circle_size, height = circle_size,
-                        just = c("left","center")))
-  par(omi = gridOMI(), new = TRUE)
-  circos.initializeWithIdeogram(paste0("chr",1:22),"hg38")
-  circos.genomicDensity(M1,           col="blue",  track.height=0.1)
-  circos.genomicDensity(filtered_plt, col="red",   track.height=0.1)
-  circos.genomicDensity(all_aaCpG_plt,col="green", track.height=0.1)
-  upViewport()
-  draw(packLegend(
-    Legend(at="Whole Genome CpGs", type="points", legend_gp=gpar(col="blue")),
-    Legend(at="Trimmed CpGs",      type="points", legend_gp=gpar(col="red")),
-    Legend(at="All aaCpGs",        type="points", legend_gp=gpar(col="green"))
-  ), x=circle_size, just="left")
-  circos.clear()
-})
+to_plot <- data.frame(
+  Window = factor(rep(c("[0-20]", "[5-25]", "[10-30]", 
+                        "[15-35]", "[20-40]", "[25-45]", 
+                        "[30-50]", "[35-55]", "[40-60]", 
+                        "[45-65]", "[50-70]", "[55-75]", 
+                        "[60-80]"), each=3), 
+                  levels = c("[0-20]", "[5-25]", "[10-30]", 
+                            "[15-35]", "[20-40]", "[25-45]", 
+                            "[30-50]", "[35-55]", "[40-60]", 
+                            "[45-65]", "[50-70]", "[55-75]", 
+                            "[60-80]")),
+  Group = rep(c("All aaCpGs", "Male aaCpGs", "Female aaCpGs"), times=13),
+  Count = c(485, 1237, 498,
+            13106, 20693, 5539,
+            6957, 2981, 5048,
+            212, 100, 522,
+            702, 1339, 301,
+            100, 100, 100,
+            100, 100, 100,
+            100, 100, 100,
+            100, 100, 100,
+            100, 100, 100,
+            1655, 472, 978,
+            4617, 8410, 2463,
+            1718, 9662, 979)
+)
 
-p1_grob <- as.ggplot(p1_grob)
-print(p1_grob)
+ggdotplot(to_plot, x = "Window", y = "Count", fill="Group", color="Group") +
+  geom_line(aes(group = Group, color = Group)) +
+  theme_and_axis_legend
+
+ggline(
+  data = to_plot,
+  x = "Window",
+  y = "Count",
+  color = "Group",
+  group = "Group",
+  add = "dotplot"   
+) + 
+  theme_and_axis_legend
+ggsave("new_figs/filter_dotplot.png", plot=last_plot(), width=10, height = 3, dpi=300)
 ```
-
 

@@ -44,9 +44,11 @@ ha <- rowAnnotation(
 ```
 
 ```{r}
-# params: num_clusters, SAVE, CLOCK, gender
+# params: num_clusters, SAVE, CLOCK, gender, ret, labs
 
-# run either to save plot (for later use) or get the dataframe with clusters annotated
+# param ret: either "df" to get the matrix with clusters annotated for use in further pipeline, or "plot" to get the plot, for use in combining in Fig 2 and 5
+# param labs: only relevant if ret == "plot", just specifying what labels you want
+
 non_all <- mainPipeline(4, TRUE, FALSE, "all", "df", c("C", "D"))
 clock_all <- mainPipeline(4, TRUE, TRUE, "all", "df", c("A", "B"))
 male_all <- mainPipeline(4, TRUE, FALSE, "male", "df", c("A", "B"))
