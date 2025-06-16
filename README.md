@@ -1,6 +1,6 @@
 # **Age-Related Patterns of DNA Methylation Changes**
 
-*Click [here](https://www.biorxiv.org/content/10.1101/2024.12.10.627727v1) to view the latest version of the manuscript!*
+*Click [here](https://www.biorxiv.org/content/10.1101/2024.12.10.627727v2) to view the latest version of the manuscript!*
 
 ## Abstract:
 
@@ -21,3 +21,5 @@ Code is written in chunks such that intermediate files are saved to disk to allo
 ## Contact:
 
 [kchen24\@stanford.edu](mailto:kchen24@stanford.edu){.email}
+
+Last updated: 6/16/2025
