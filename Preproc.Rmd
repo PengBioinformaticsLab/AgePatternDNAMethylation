@@ -1213,7 +1213,7 @@ for (i in 1:num_groups) {
   
 
 
-plotCpG <- function(cpg_list, gender_state) {
+plotCpG <- function(cpg_list, gender_state, line_start, line_end) {
   plot_list2 <- list()
   
   # Check which split to extract from in my files
@@ -1243,13 +1243,15 @@ plotCpG <- function(cpg_list, gender_state) {
     
     colnames(temp) <- c("Age", "Beta")
     temp <- temp[temp$Age<=80, ]
-    correlation <- cor(temp$Age, temp$Beta, use="complete.obs")
+    
+    temp_window <- temp[temp$Age >= start & temp$Age <= end, ]
+    correlation <- cor(temp_window$Age, temp_window$Beta, use="complete.obs")
     correlation <- round(correlation, digits=2)
     
     a <- ggscatter(temp, x = "Age", y = "Beta", size = 1, title = cpg_name,
                      xlab = "Age", ylab = "Beta Values", color = "lightgray", shape=16) +
         #geom_smooth(method = "loess", color = "blue", fill = "lightblue", se = FALSE) +
-        geom_smooth(method="lm") + 
+        geom_smooth(data = temp_window, method = "lm", se = FALSE, color = "blue") + 
         ylim(0, 1) +
         xlim(0, 80) + 
     theme_and_axis_nolegend
@@ -1305,6 +1307,44 @@ for (i in 1:length(clock_cpgs)) {
   }
 }
 ```
+
+```{r}
+theme_and_axis_nolegend <- theme(
+    legend.position = "none",       
+    text = element_text(face = "bold"), 
+    axis.title = element_text(face = "bold"), 
+    axis.text = element_text(face = "bold"),  
+    plot.title = element_text(face = "bold", hjust=0.5),  
+    plot.subtitle = element_text(face = "bold") 
+  )
+
+# Randomly select 10 CpGs for each age window and draw scatterplot (ggarrange by window)
+
+# load filter
+all_list <- readRDS("all_list.rds")
+
+# reproducibility
+set.seed(123)
+
+i = 0
+for (window in names(all_list)) {
+  start = 5 * i
+  end = start + 20
+  temp_plot_list <- list()
+  for (i in 1:10) {
+    cpg <- sample(all_list[[window]], 1)
+    a <- plotCpG(cpg, 1, start, end)
+    temp_plot_list <- append(temp_plot_list, a)
+  }
+  
+  a <- ggarrange(plotlist = temp_plot_list, ncol=3, nrow=4, common.legend = TRUE)
+  print(a)
+  ggsave(a, filename=paste0(window, "_explot.png"), height = 12, width = 9, dpi=300)
+  
+  i = i + 1
+}
+```
+
 
 
 UNUSED STUFF BELOW
