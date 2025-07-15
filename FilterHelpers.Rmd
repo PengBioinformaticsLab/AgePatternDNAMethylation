@@ -28,7 +28,7 @@ Calculate statistics for downstream filtering
 
 # output: data frame of 3 columns for each age range -> correlation, abs change, num points over sd threshold
 
-extractResults <- function(avg_matrix_path, sd_matrix_path) {
+extractResults <- function(avg_matrix_path, sd_matrix_path, sd_coeff_cutoff) {
   # Read matrices
   B <- fread(avg_matrix_path)
   S <- fread(sd_matrix_path)
@@ -84,7 +84,7 @@ extractResults <- function(avg_matrix_path, sd_matrix_path) {
     abs_change_results <- apply(sub_B, 1, function(x) calc_abs_change(x, age_sequence))    
     # Calculate num variance
     # Set threshold
-    adj_avg <- 0.5 * sqrt(sub_B * (1 - sub_B))
+    adj_avg <- sd_coeff_cutoff * sqrt(sub_B * (1 - sub_B))
 
     # Change to matrix    
     sub_S_matrix <- as.matrix(sub_S)
@@ -128,7 +128,12 @@ Filter using results
 # note: if less than 100 sites selected for filter, first do standard deviation filtering, then filter for top 1000 by r, then final top 100 by absolute beta change, just for representation of other age windows
 
 # output: structure with for each age window: num of cpg sites filtered and full list
-extract_sites <- function(results, gender_state, cor_threshold, abs_threshold, sd_threshold, extra_filter=TRUE) {
+extract_sites <- function(filtered_cpg_list, results, gender_state, cor_threshold, abs_threshold, sd_threshold, extra_filter=TRUE) {
+  # filter down sites
+  
+  results <- results[filtered_cpg_list, ]
+  
+  
   significant_counts <- data.frame(age_window = character(), count = integer(), sites = I(list()), stringsAsFactors=FALSE)
   
   # Extract values from filter results
@@ -169,7 +174,7 @@ extract_sites <- function(results, gender_state, cor_threshold, abs_threshold, s
   return(significant_counts)
 }
 
-# param significant_counts: result from extrac_sites function
+# param significant_counts: result from extract_sites function
 
 # output: list with identifier as age window, filled with list of CpG sites
 convert_to_list_format <- function(significant_counts) {

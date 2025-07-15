@@ -929,8 +929,6 @@ seg_bar <- ggbarplot(
   labs(x = "Age", y = "Percentage") +
   theme_and_axis_nolegend
 
-# Arrange everything together
-
 h1 <- histogram_list[[1]]
 h2 <- histogram_list[[2]]
 h3 <- histogram_list[[3]]
@@ -968,7 +966,7 @@ female_samples <- full_metadata[full_metadata$gender == "female" | full_metadata
 #saveRDS(female_samples, "female_samples.rds")
 ```
 
-Make Splits
+Make Splits (necessary because of limited compute)
 
 ```{r}
 #cpg_list <- readRDS("cpg_list.rds") # this is filtered down 393,628
@@ -984,7 +982,8 @@ makeSplits(cpg_list, full_metadata, valid_samples, 50000, output_folder)
 Make matrix from splits
 
 ```{r}
-cpg_list <- readRDS("cpg_list.rds")
+#cpg_list <- readRDS("cpg_list.rds")
+cpg_list <- readRDS("all_high_presence_cpgs.rds")
 full_metadata <- readRDS("full_metadata.rds")
 valid_samples <- readRDS("valid_samples.rds")
 output_folder <- "splits/"
@@ -1005,6 +1004,7 @@ female_samples <- intersect(female_samples, valid_samples)
 
 ```
 
+Get calculated ages for previous clocks
 
 ```{r}
 # TRY wateRmelon for HorvathS2013, try https://zenodo.org/records/2632938 for epiTOC2 (teschendorff)
@@ -1191,6 +1191,8 @@ ggsave(
 
 ```
 
+Plot CpGs found in many previous clocks
+
 ```{r}
 # Supp Fig 1B here, cowplot/ggarrange with Supp Fig 1A earlier
 
@@ -1213,7 +1215,7 @@ for (i in 1:num_groups) {
   
 
 
-plotCpG <- function(cpg_list, gender_state, line_start, line_end) {
+plotCpG <- function(cpg_list, gender_state, seg_start, seg_end) {
   plot_list2 <- list()
   
   # Check which split to extract from in my files
@@ -1244,7 +1246,7 @@ plotCpG <- function(cpg_list, gender_state, line_start, line_end) {
     colnames(temp) <- c("Age", "Beta")
     temp <- temp[temp$Age<=80, ]
     
-    temp_window <- temp[temp$Age >= start & temp$Age <= end, ]
+    temp_window <- temp[temp$Age >= seg_start & temp$Age <= seg_end, ]
     correlation <- cor(temp_window$Age, temp_window$Beta, use="complete.obs")
     correlation <- round(correlation, digits=2)
     
@@ -1308,6 +1310,10 @@ for (i in 1:length(clock_cpgs)) {
 }
 ```
 
+# Everything below is retrospective
+
+Checking filters, plotting all points for 10 randomly selected CpGs in each window
+
 ```{r}
 theme_and_axis_nolegend <- theme(
     legend.position = "none",       
@@ -1330,8 +1336,11 @@ i = 0
 for (window in names(all_list)) {
   start = 5 * i
   end = start + 20
+  print(paste("I:", i))
+  print(paste("Start:", start))
+  print(paste("End:", end))
   temp_plot_list <- list()
-  for (i in 1:10) {
+  for (j in 1:10) {
     cpg <- sample(all_list[[window]], 1)
     a <- plotCpG(cpg, 1, start, end)
     temp_plot_list <- append(temp_plot_list, a)
@@ -1343,8 +1352,129 @@ for (window in names(all_list)) {
   
   i = i + 1
 }
+
 ```
 
+Checking CpG presence across samples and further filtering
+
+```{r}
+# check randomly selected cg21485906, cg18591945, and other cpgs selected in higher age ranges
+
+cpg_list <- readRDS("all_list.rds")
+
+# datasets containing old samples are -> GSE40279, GSE53740
+GSE40279 <- fread("pp_datasets/GSE40279_pp.csv")
+GSE53740 <- fread("pp_datasets/GSE53740_pp.csv")
+
+splits <- list.files("splits/")
+
+
+library(data.table)
+
+total_counts <- setNames(rep(0, length(seq(0, 95, by = 5))), 
+                         paste0(seq(0, 95, by = 5), "-", seq(5, 100, by = 5), "%"))
+
+for (i in 1:length(splits)) {
+  temp <- fread(paste0("splits/", splits[i]))
+  temp <- temp[-1, -1]  # remove first row and column
+
+  temp <- as.data.frame(lapply(temp, as.numeric))
+
+  num_samples <- ncol(temp)
+
+  percent_present <- (rowSums(!is.na(temp) & temp != 0) / num_samples) * 100
+
+  breaks <- seq(0, 100, by = 5)
+  bin_labels <- paste0(breaks[-length(breaks)], "-", breaks[-1], "%")
+  binned <- cut(percent_present, breaks = breaks, labels = bin_labels, include.lowest = TRUE, right = FALSE)
+  table_counts <- table(binned)
+
+  for (label in names(table_counts)) {
+    total_counts[label] <- total_counts[label] + table_counts[label]
+  }
+}
+
+final_table <- data.frame(
+  Percent_Range = names(total_counts),
+  Num_CpGs = as.integer(total_counts)
+)
+
+saveRDS(final_table, "table.rds")
+
+library(data.table)
+
+cpgs_95_100 <- list()
+
+for (i in 1:length(splits)) {
+  temp <- fread(paste0("splits/", splits[i]))
+  
+  cpg_ids <- temp[-1, 1][[1]]  
+  temp <- temp[-1, -1]         
+  temp <- as.data.frame(lapply(temp, as.numeric))
+
+  num_samples <- ncol(temp)
+
+  percent_present <- (rowSums(!is.na(temp) & temp != 0) / num_samples) * 100
+
+  hits <- which(percent_present >= 95 & percent_present <= 100)
+
+  cpgs_95_100[[splits[i]]] <- cpg_ids[hits]
+}
+
+all_high_presence_cpgs <- unique(unlist(cpgs_95_100))
+
+saveRDS(all_high_presence_cpgs, "all_high_presence_cpgs.rds")
+```
+
+Determine missingness across age groups in new set of filtered CpGs
+
+```{r}
+library(data.table)
+library(dplyr)
+
+vert_splits <- list.files("vert_splits/")
+all_high_presence_cpgs <- readRDS("all_high_presence_cpgs.rds")
+met <- readRDS("full_metadata.rds")
+
+missing_summary <- list()
+
+for (i in 1:length(vert_splits)) {
+  temp <- fread(paste0("vert_splits/", vert_splits[i]))
+  temp <- as.data.frame(temp)
+  rownames(temp) <- temp[, 1]
+  temp <- temp[, -1]
+
+  temp <- temp[all_high_presence_cpgs, , drop = FALSE]
+
+  sample_ids <- colnames(temp)
+  age_map <- met %>% filter(sample_id %in% sample_ids) %>% select(sample_id, age)
+  
+  age_vector <- age_map$age[match(sample_ids, age_map$sample_id)]
+
+  temp_t <- as.data.frame(t(temp))
+  temp_t$age <- age_vector
+
+  temp_summary <- temp_t %>%
+    group_by(age) %>%
+    summarise(
+      total_entries = n() * (ncol(temp_t) - 1),  # rows * number of CpGs
+      missing_entries = sum(is.na(across(where(is.numeric))) | across(where(is.numeric)) == 0, na.rm = TRUE),
+      percent_missing = (missing_entries / total_entries) * 100
+    )
+  
+  missing_summary[[i]] <- temp_summary
+}
+
+aggreg <- bind_rows(missing_summary) %>%
+  group_by(age) %>%
+  summarise(
+    total_entries = sum(total_entries),
+    missing_entries = sum(missing_entries),
+    percent_missing = mean(percent_missing)
+  )
+
+saveRgDS(aggreg, "missing.rds")
+```
 
 
 UNUSED STUFF BELOW

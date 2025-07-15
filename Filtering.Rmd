@@ -3,17 +3,33 @@ title: "Filter"
 output: html_notebook
 ---
 
+```{r}
+# Extract summary statistics for all CpGs in the matrix
+
+# extractResults(avg_matrix_path, sd_matrix_path, sd_coeff_cutoff)
+# only parameter to be set is sd_coeff_cutoff, which is the coefficient for equation sqrt(Beta * (1 - Beta))
+
+all_results <- extractResults("matrix/allTRUE.csv", "matrix/allFALSE.csv", 0.4)
+male_results <- extractResults("matrix/maleTRUE.csv", "matrix/maleFALSE.csv", 0.4)
+female_results <- extractResults("matrix/femaleTRUE.csv", "matrix/femaleFALSE.csv", 0.4)
+
+#saveRDS(all_results, "all_results.rds")
+#saveRDS(male_results, "male_results.rds")
+#saveRDS(female_results, "female_results.rds")
+```
+
 
 ```{r}
+# Extract aaCpGs for each section based on sum stats generated previously
 
+# extract_sites(filtered_cpg_list, results, gender_state, cor_threshold, abs_threshold, sd_threshold, extra_filter=TRUE)
+# extra_filter adds the condition that if less than 100 sites are selected, select the 100 sites with the greatest absolute beta change
 
-all_results <- extractResults("matrix/allTRUE.csv", "matrix/allFALSE.csv")
-male_results <- extractResults("matrix/maleTRUE.csv", "matrix/maleFALSE.csv")
-female_results <- extractResults("matrix/femaleTRUE.csv", "matrix/femaleFALSE.csv")
+filtered_list <- readRDS("all_high_presence_cpgs.rds")
 
-all_sig_counts <- extract_sites(all_results, 1, 0.6, 0.25, 2)
-male_sig_counts <- extract_sites(male_results, 2, 0.6, 0.25, 2)
-female_sig_counts <- extract_sites(female_results, 3, 0.6, 0.25, 2)
+all_sig_counts <- extract_sites(filtered_list, all_results, 1, 0.6, 0.25, 2)
+male_sig_counts <- extract_sites(filtered_list, male_results, 2, 0.6, 0.25, 2)
+female_sig_counts <- extract_sites(filtered_list, female_results, 3, 0.6, 0.25, 2)
 
 all_list <- convert_to_list_format(all_sig_counts)
 male_list <- convert_to_list_format(male_sig_counts)
@@ -23,9 +39,6 @@ female_list <- convert_to_list_format(female_sig_counts)
 # saveRDS(male_list, "male_list.rds")
 # saveRDS(female_list, "female_list.rds")
 
-#saveRDS(all_results, "all_results.rds")
-#saveRDS(male_results, "male_results.rds")
-#saveRDS(female_results, "female_results.rds")
 
 # run to get results without the extra filter
 
@@ -39,6 +52,56 @@ female_list <- convert_to_list_format(female_sig_counts)
 
 
 ```
+
+```{r}
+## visualizing filter results with new CpGs
+#
+#all_results <- all_results[filtered_list, ]
+#
+#temp_make_scatter <- function(res_df, window_label) {
+#  corr_col <- paste0(window_label, "-corr_res")
+#  abs_col  <- paste0(window_label, "-abs_res")
+#  df <- data.frame(
+#    corr = res_df[[corr_col]],
+#    abs  = res_df[[abs_col]],
+#    id   = rownames(res_df),
+#    stringsAsFactors = FALSE
+#  )
+#  
+#  plot_df <- data.frame(
+#    corr = all_results[[corr_col]],
+#    abs = all_results[[abs_col]],
+#    id = rownames(all_results),
+#    stringsAsFactors=FALSE
+#  )
+#  
+#  a <- ggscatter(plot_df, x="corr", y="abs")
+#
+#  return(a)
+#}
+#
+#all_list <- readRDS("all_list.rds")
+#age_windows <- names(all_list)
+#
+#plots_all    <- vector("list", 13)
+#
+#for (i in seq_along(age_windows)) {
+#  w <- age_windows[i]
+#  plots_all[[i]]    <- temp_make_scatter(all_results, w)
+#}
+#
+#arranged_all <- ggarrange(plotlist = plots_all,
+#                          #common.legend=TRUE,
+#                          legend = "none",
+#                          ylab = NULL,
+#                          xlab = NULL,
+#                          ncol = 1)
+#
+#ggsave("temp.png", arranged_all, width=3, height=30)
+
+
+```
+
 
 ```{r}
 # supp fig. 3
@@ -283,10 +346,9 @@ print(all_plot)
 ggsave("new_figs/fig_3.pdf", device=cairo_pdf, plot=last_plot(), width=14, height=12, dpi=300)
 ```
 
-Calc overlap
 
 ```{r}
-# supp fig 3 here
+# supp fig 3 here -> upsets showing overlaps between selected CpGs for each gender split
 
 #all_list
 #male_list
@@ -482,7 +544,7 @@ dev.off()
 # manually combine
 ```
 
-Unused Below
+UNUSED BELOW
 
 Create dot plot visualizing filter amounts
 
