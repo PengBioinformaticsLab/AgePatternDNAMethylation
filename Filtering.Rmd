@@ -9,9 +9,9 @@ output: html_notebook
 # extractResults(avg_matrix_path, sd_matrix_path, sd_coeff_cutoff)
 # only parameter to be set is sd_coeff_cutoff, which is the coefficient for equation sqrt(Beta * (1 - Beta))
 
-all_results <- extractResults("matrix/allTRUE.csv", "matrix/allFALSE.csv", 0.4)
-male_results <- extractResults("matrix/maleTRUE.csv", "matrix/maleFALSE.csv", 0.4)
-female_results <- extractResults("matrix/femaleTRUE.csv", "matrix/femaleFALSE.csv", 0.4)
+all_results <- extractResults("matrix/allTRUE.csv", "matrix/allFALSE.csv", 0.2)
+male_results <- extractResults("matrix/maleTRUE.csv", "matrix/maleFALSE.csv", 0.2)
+female_results <- extractResults("matrix/femaleTRUE.csv", "matrix/femaleFALSE.csv", 0.2)
 
 #saveRDS(all_results, "all_results.rds")
 #saveRDS(male_results, "male_results.rds")
@@ -22,12 +22,12 @@ female_results <- extractResults("matrix/femaleTRUE.csv", "matrix/femaleFALSE.cs
 ```{r}
 # Extract aaCpGs for each section based on sum stats generated previously
 
-# extract_sites(filtered_cpg_list, results, gender_state, cor_threshold, abs_threshold, sd_threshold, extra_filter=TRUE)
+# extract_sites(results, filtered_cpg_list, gender_state, cor_threshold, abs_threshold_young, abs_threshold_old, sd_threshold, extra_filter=TRUE)
 # extra_filter adds the condition that if less than 100 sites are selected, select the 100 sites with the greatest absolute beta change
 
 filtered_list <- readRDS("all_high_presence_cpgs.rds")
 
-all_sig_counts <- extract_sites(filtered_list, all_results, 1, 0.6, 0.25, 2)
+all_sig_counts <- extract_sites(all_results, filtered_list, "Male", 0.5, 0.2, 0.1, 2, TRUE)
 male_sig_counts <- extract_sites(filtered_list, male_results, 2, 0.6, 0.25, 2)
 female_sig_counts <- extract_sites(filtered_list, female_results, 3, 0.6, 0.25, 2)
 

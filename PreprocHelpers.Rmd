@@ -355,6 +355,84 @@ for (chunk_index in 1:num_chunks) {
   fwrite(chunk_data, paste0("vert_splits/vert_split_", chunk_index, ".csv"))
 }
 ```
+
+Plot single CpG given some parameters
+specify seg_start and seg_end for additional annotation (regression line of a window)
+
+```{r}
+set.seed(123)
+# Create split lists
+# Read desired site list
+sites <- readRDS("running_site_list.rds")
+cpg_list <- rownames(sites)
+NUMCPGSITE <- length(cpg_list)
+sites_per_list <- 50000
+num_groups <- ceiling(NUMCPGSITE/sites_per_list)
+
+# Create splits
+split_lists <- vector("list", num_groups)
+for (i in 1:num_groups) {
+  start_index <- (i-1)*sites_per_list + 1
+  end_index <- min(i*sites_per_list, NUMCPGSITE)
+  split_lists[[i]] <- cpg_list[start_index:end_index]
+}
+
+plotCpG <- function(cpg_list, gender_state, seg_start, seg_end) {
+  plot_list2 <- list()
+  
+  # Check which split to extract from in my files
+  for (cpg_name in cpg_list) {
+    splits <- list.files(path="splits")
+    
+    # Find which split
+    num <- 0
+    for (i in 1:length(split_lists)) {
+      if (cpg_name %in% split_lists[[i]]) {
+        num <- i
+      }
+    }
+    temp <- fread(paste0("splits/split_", num, ".csv"))
+    temp <- as.data.frame(temp)
+    
+    rownames(temp) <- temp$V1
+    temp <- temp[, -c(1, 2)]
+    
+    # Filter for samples
+    # all_samples, male_samples, female_samples
+    
+    
+    temp <- temp[c("age", cpg_name), ]
+    
+    temp <- as.data.frame(t(temp))
+    
+    colnames(temp) <- c("Age", "Beta")
+    temp <- temp[temp$Age<=80, ]
+    
+    temp_window <- temp[temp$Age >= seg_start & temp$Age <= seg_end, ]
+    correlation <- cor(temp_window$Age, temp_window$Beta, use="complete.obs")
+    correlation <- round(correlation, digits=2)
+    
+    a <- ggscatter(temp, x = "Age", y = "Beta", size = 1, title = cpg_name,
+                     xlab = "Age", ylab = "Beta Values", color = "lightgray", shape=16) +
+        #geom_smooth(method = "loess", color = "blue", fill = "lightblue", se = FALSE) +
+        geom_smooth(data = temp_window, method = "lm", se = FALSE, color = "blue") + 
+        ylim(0, 1) +
+        xlim(0, 80) + 
+    theme_and_axis_nolegend
+    a <- a + annotate("text", x = 70, y = 1,
+      label = paste0("r = ", correlation), color="red", fontface="bold")
+    
+    plot_list2[[length(plot_list2) + 1]] <- a
+    
+    # if (save==TRUE) {
+    #   ggsave(filename = paste0("figs/", cpg_name, ".png"), plot = a, height=6, width=10, dpi = 300)
+    # }
+  }
+  return(plot_list2)
+}
+```
+
+
 Additional dependencies needed in Preproc
 
 ```{r}

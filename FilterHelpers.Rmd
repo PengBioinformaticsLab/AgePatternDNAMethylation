@@ -17,6 +17,7 @@ library(gridExtra)
 library(ggpubr)
 library(grid)
 library(ggplot2)
+library(data.table)
 ```
 
 
@@ -128,49 +129,47 @@ Filter using results
 # note: if less than 100 sites selected for filter, first do standard deviation filtering, then filter for top 1000 by r, then final top 100 by absolute beta change, just for representation of other age windows
 
 # output: structure with for each age window: num of cpg sites filtered and full list
-extract_sites <- function(filtered_cpg_list, results, gender_state, cor_threshold, abs_threshold, sd_threshold, extra_filter=TRUE) {
+extract_sites <- function(results, filtered_cpg_list, gender, cor_threshold, abs_threshold_young, abs_threshold_old, sd_threshold, extra_filter=TRUE) {
   # filter down sites
   
   results <- results[filtered_cpg_list, ]
   
   
-  significant_counts <- data.frame(age_window = character(), count = integer(), sites = I(list()), stringsAsFactors=FALSE)
+  significant_counts <- data.frame(age_window = character(), count = integer(), Gender = String(), sites = I(list()), stringsAsFactors=FALSE)
   
-  # Extract values from filter results
+  # filter sites down -> first using correlation coefficient and sd cutoff, 
+  # then do absolute beta change cutoff / top 100 by beta change
+  
   for (i in seq(1, ncol(results), by=3)) {
-    filtered_in_window <- apply(results[, c(i, i+1, i+2)], 1, function(row) {
+    window_name <- gsub("-corr_res", "", colnames(results)[i])
+    first_filter <- apply(results[, c(i, i+1, i+2)], 1, function(row) {
       corr_res <- row[1]
-      abs_res <- row[2]
       sd_res <- row[3]
-      !is.na(corr_res) && !is.na(abs_res) && !is.na(sd_res) &&
-      abs(corr_res) > cor_threshold && abs_res > abs_threshold && sd_res < sd_threshold
+      
+      !is.na(corr_res) && !is.na(sd_res) && abs(corr_res) >= cor_threshold && sd_reses < sd_threshold
     })
-    cpg_sites <- rownames(results)[filtered_in_window]
     
-    # EXTRA CRITERIA TO ENSURE AT LEAST 100 PER WINDOW
+    first_sites <- rownames(results)[first_filter]
+    
+    second_sites <- results[temp[i+1] >= abs_threshold, ]
+    
     if (extra_filter) {
-      if (length(cpg_sites) < 100) {
-        temp <- results[, c(i, i+1, i+2)]
-        # QC Standard deviation filtering
-        temp <- temp[temp[, i %% 3 + 2] < sd_threshold, ]
-        # top 1000 by correlation coefficient
-        temp <- temp[order(-abs(temp[, i %% 3 ])), ]
-        temp <- temp[1:1000, ]
-        # top 100 by absolute beta change
-        temp <- temp[order(-temp[, i %% 3 + 1]), ]
-        temp <- temp[1:100, ]
-        
-        cpg_sites <- rownames(temp)
+      if (dim(second_sites)[0] < 100) {
+        first_sites <- first_sites[order(-temp[, i+1]), ]
+        second_sites <- first_sites[1:100, ]
       }
     }
-    window_name <- gsub("-corr_res", "", colnames(results)[i])
-     significant_counts <- rbind(significant_counts, data.frame(
-       Age_Window = window_name, 
-       Count = length(cpg_sites), 
-       Gender = ifelse(gender_state == 1, "All", ifelse(gender_state == 2, "Male", "Female")),
-       CpG_Sites = I(list(cpg_sites))
-     ))
+    
+    cpg_sites <- rownames(second_sites)
+    
+    significant_counts <- rbind(significant_counts, data.frame(
+      Age_Window = window_name,
+      Count = length(cpg_sites),
+      Gender = gender,
+      CpG_Sites = I(list(cpg_sites))
+    ))
   }
+  
   return(significant_counts)
 }
 

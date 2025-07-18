@@ -43,7 +43,7 @@ full_metadata <- data.frame(sample_id = NULL,
                             tissue = NULL,
                             disease_status = NULL)
 
-# GSE32148
+# 1. GSE32148
 # ------------------
 
 file_path <- "original_datasets/oGSE32148_beta.xlsx"
@@ -74,7 +74,7 @@ full_metadata <- rbind(full_metadata, temp_md)
 # save processed data
 #write.csv(new_dataset, "pp_datasets/GSE32148_pp.csv") # work-around to preserve rownames, when read using fread, rownames become the first column
 
-# GSE36054
+# 2. GSE36054
 # ------------------
 
 file_path <- "original_datasets/oGSE36054_beta.xlsx"
@@ -106,7 +106,7 @@ full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "pp_datasets/GSE36054_pp.csv")
 
-# GSE40279
+# 3. GSE40279
 # ------------------
 
 file_path <- "original_datasets/oGSE40279_beta.csv"
@@ -138,7 +138,7 @@ full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "pp_datasets/GSE40279_pp.csv")
 
-# GSE50660
+# 4. GSE50660
 # ------------------
 
 file_path <- "original_datasets/oGSE50660_beta.csv"
@@ -170,7 +170,7 @@ full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "pp_datasets/GSE50660_pp.csv")
 
-# GSE50759
+# 5. GSE50759
 # ------------------
 
 file_path <- "original_datasets/oGSE50759_beta.xlsx"
@@ -207,7 +207,7 @@ full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "pp_datasets/GSE50759_pp.csv")
 
-# GSE51057
+# 6. GSE51057
 # ------------------
 
 file_path <- "original_datasets/oGSE51057_beta.csv"
@@ -240,7 +240,7 @@ full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "pp_datasets/GSE51057_pp.csv")
 
-# GSE53740
+# 7. GSE53740
 # ------------------
 
 file_path <- "original_datasets/oGSE53740_beta.csv"
@@ -273,7 +273,7 @@ full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "pp_datasets/GSE53740_pp.csv")
 
-# GSE61256
+# 8. GSE61256
 # ------------------
 
 file_path <- "original_datasets/oGSE61256_beta.csv"
@@ -306,7 +306,7 @@ full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "pp_datasets/GSE61256_pp.csv")
 
-# GSE67705
+# 9. GSE67705
 # ------------------
 
 file_path <- "original_datasets/oGSE67705_beta.csv"
@@ -338,7 +338,7 @@ full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "pp_datasets/GSE67705_pp.csv")
 
-# GSE73103
+# 10. GSE73103
 # ------------------
 
 file_path <- "original_datasets/oGSE73103_beta.csv"
@@ -370,7 +370,7 @@ full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "pp_datasets/GSE73103_pp.csv")
 
-# GSE80261
+# 11. GSE80261
 # ------------------
 
 file_path <- "original_datasets/oGSE80261_beta.xlsx"
@@ -404,7 +404,7 @@ full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "pp_datasets/GSE80261_pp.csv")
 
-# GSE85568
+# 12. GSE85568
 # ------------------
 
 file_path <- "original_datasets/oGSE85568_beta.csv"
@@ -441,7 +441,7 @@ full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "pp_datasets/GSE85568_pp.csv")
 
-# GSE89253
+# 13. GSE89253
 # ------------------
 
 file_path <- "original_datasets/oGSE89253_beta.csv"
@@ -478,7 +478,7 @@ full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "pp_datasets/GSE89253_pp.csv")
 
-# GSE90124
+# 14. GSE90124
 # ------------------
 
 file_path <- "original_datasets/oGSE90124_beta.csv"
@@ -510,7 +510,7 @@ full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "pp_datasets/GSE90124_pp.csv")
 
-# GSE94734
+# 15. GSE94734
 # ------------------
 
 file_path <- "original_datasets/oGSE94734_beta.xlsx"
@@ -543,7 +543,7 @@ full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "pp_datasets/GSE94734_pp.csv")
 
-# GSE106648
+# 16. GSE106648
 # ------------------
 
 file_path <- "original_datasets/oGSE106648_beta.csv"
@@ -575,7 +575,7 @@ full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "pp_datasets/GSE106648_pp.csv")
 
-# GSE114134
+# 17. GSE114134
 # ------------------
 
 file_path <- "original_datasets/oGSE114134_beta.csv"
@@ -613,11 +613,11 @@ full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "pp_datasets/GSE114134_pp.csv")
 
-# GSE124076
-# ------------------
+# ~. GSE124076
+# ------------------ 
 # CUT FOR NOW
 
-# GSE124366
+# 18. GSE124366
 # ------------------
 
 file_path <- "original_datasets/oGSE124366_beta.csv"
@@ -650,7 +650,7 @@ full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "pp_datasets/GSE124366_pp.csv")
 
-# GSE137495
+# 19. GSE137495
 # ------------------
 
 file_path <- "original_datasets/oGSE137495_beta.xlsx"
@@ -682,7 +682,7 @@ full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "pp_datasets/GSE137495_pp.csv")
 
-# GSE138279
+# 20. GSE138279
 # ------------------
 
 file_path <- "original_datasets/oGSE138279_beta.xlsx"
@@ -718,7 +718,7 @@ full_metadata <- rbind(full_metadata, temp_md)
 
 library(GEOquery)
 
-#GSE62924
+# 21. GSE62924
 # ------------------
 
 gse <- getGEO("GSE62924", GSEMatrix = TRUE)
@@ -748,7 +748,7 @@ full_metadata <- rbind(full_metadata, metadata)
 
 #write.csv(new_dataset, "pp_datasets/GSE62924_pp.csv")
 
-#GSE51180
+# 22. GSE51180
 # ------------------
 
 gse <- getGEO("GSE51180", GSEMatrix = TRUE)
@@ -778,7 +778,7 @@ full_metadata <- rbind(full_metadata, metadata)
 
 #write.csv(new_dataset, "pp_datasets/GSE51180_pp.csv")
 
-#GSE30870
+# 23. GSE30870
 # ------------------
 
 gse <- getGEO("GSE30870", GSEMatrix = TRUE)
@@ -1196,79 +1196,6 @@ Plot CpGs found in many previous clocks
 ```{r}
 # Supp Fig 1B here, cowplot/ggarrange with Supp Fig 1A earlier
 
-set.seed(123)
-# Create split lists
-# Read desired site list
-sites <- readRDS("running_site_list.rds")
-cpg_list <- rownames(sites)
-NUMCPGSITE <- length(cpg_list)
-sites_per_list <- 50000
-num_groups <- ceiling(NUMCPGSITE/sites_per_list)
-
-# Create splits
-split_lists <- vector("list", num_groups)
-for (i in 1:num_groups) {
-  start_index <- (i-1)*sites_per_list + 1
-  end_index <- min(i*sites_per_list, NUMCPGSITE)
-  split_lists[[i]] <- cpg_list[start_index:end_index]
-}
-  
-
-
-plotCpG <- function(cpg_list, gender_state, seg_start, seg_end) {
-  plot_list2 <- list()
-  
-  # Check which split to extract from in my files
-  for (cpg_name in cpg_list) {
-    splits <- list.files(path="splits")
-    
-    # Find which split
-    num <- 0
-    for (i in 1:length(split_lists)) {
-      if (cpg_name %in% split_lists[[i]]) {
-        num <- i
-      }
-    }
-    temp <- fread(paste0("splits/split_", num, ".csv"))
-    temp <- as.data.frame(temp)
-    
-    rownames(temp) <- temp$V1
-    temp <- temp[, -c(1, 2)]
-    
-    # Filter for samples
-    # all_samples, male_samples, female_samples
-    
-    
-    temp <- temp[c("age", cpg_name), ]
-    
-    temp <- as.data.frame(t(temp))
-    
-    colnames(temp) <- c("Age", "Beta")
-    temp <- temp[temp$Age<=80, ]
-    
-    temp_window <- temp[temp$Age >= seg_start & temp$Age <= seg_end, ]
-    correlation <- cor(temp_window$Age, temp_window$Beta, use="complete.obs")
-    correlation <- round(correlation, digits=2)
-    
-    a <- ggscatter(temp, x = "Age", y = "Beta", size = 1, title = cpg_name,
-                     xlab = "Age", ylab = "Beta Values", color = "lightgray", shape=16) +
-        #geom_smooth(method = "loess", color = "blue", fill = "lightblue", se = FALSE) +
-        geom_smooth(data = temp_window, method = "lm", se = FALSE, color = "blue") + 
-        ylim(0, 1) +
-        xlim(0, 80) + 
-    theme_and_axis_nolegend
-    a <- a + annotate("text", x = 70, y = 1,
-      label = paste0("r = ", correlation), color="red", fontface="bold")
-    
-    plot_list2[[length(plot_list2) + 1]] <- a
-    
-    # if (save==TRUE) {
-    #   ggsave(filename = paste0("figs/", cpg_name, ".png"), plot = a, height=6, width=10, dpi = 300)
-    # }
-  }
-  return(plot_list2)
-}
-
 cpg_list <- c("cg19722847", "cg16867657", "cg09809672", "cg06144905")
 plot_list2 <- plotCpG(cpg_list, 1)
 
@@ -1310,7 +1237,7 @@ for (i in 1:length(clock_cpgs)) {
 }
 ```
 
-# Everything below is retrospective
+# EVERYTHING BELOW IS RETROSPECTIVE (checking filter and cluster results)
 
 Checking filters, plotting all points for 10 randomly selected CpGs in each window
 
@@ -1327,7 +1254,7 @@ theme_and_axis_nolegend <- theme(
 # Randomly select 10 CpGs for each age window and draw scatterplot (ggarrange by window)
 
 # load filter
-all_list <- readRDS("all_list.rds")
+#all_list <- readRDS("all_list.rds")
 
 # reproducibility
 set.seed(123)
@@ -1348,7 +1275,7 @@ for (window in names(all_list)) {
   
   a <- ggarrange(plotlist = temp_plot_list, ncol=3, nrow=4, common.legend = TRUE)
   print(a)
-  ggsave(a, filename=paste0(window, "_explot.png"), height = 12, width = 9, dpi=300)
+  ggsave(a, filename=paste0("checking/", window, "_explot.png"), height = 12, width = 9, dpi=300)
   
   i = i + 1
 }
