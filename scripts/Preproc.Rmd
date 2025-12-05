@@ -16,7 +16,7 @@ Start from scratch (datasets directly from OneDrive)
 - save in standardized format given by https://bio-learn.github.io/methylation-standard.html will load correctly. (slightly modified w/ row and column names)
  - format as csv
  - each row has same number of entries
- - row corresponds to measurements to a CpG site, with rownames as CpG ID
+ - row corresponds to measurements to a CpG site, with rownames as CpG I
  - rownames is in standard cpg order
  - colNames has sample ID
  * no more than 1000 samples if wanted to be used with biolearn package
@@ -26,13 +26,18 @@ Start from scratch (datasets directly from OneDrive)
 - Made the choice to individually go through each dataset instead of writing a pipeline function to ensure that nuances do not slip through
 
 ```{r}
+# NOTE: based on some non-linear programming (whoops... we filter for valid_samples, even though that is only determined after running this chunk)
+nonlinear_vs <- readRDS("../intermediates/valid_samples.rds")
+
 # 4 things to check after each dataset has been processed: metadata_tracker, running_site_list, and valid_samples, full_metadata
 age_range <- 0:100
 metadata_tracker <- data.frame(matrix(0, nrow=length(age_range), ncol=0))
 rownames(metadata_tracker) <- paste0("age", age_range)
 
 running_site_list <- data.frame(Count = rep(0, length(standard_cpg_list)))
+site_list_by_samples <- data.frame(Count = rep(0, length(standard_cpg_list)))
 rownames(running_site_list) <- standard_cpg_list
+rownames(site_list_by_samples) <- standard_cpg_list
 
 valid_samples <- list()
 
@@ -46,7 +51,7 @@ full_metadata <- data.frame(sample_id = NULL,
 # 1. GSE32148
 # ------------------
 
-file_path <- "../../data/raw/oGSE32148_beta.xlsx"
+file_path <- "../data/raw/oGSE32148_beta.xlsx"
 file_path2 <- "../data/raw/oGSE32148_md.xlsx"
 
 temp_beta <- readXLSX(file_path)
@@ -61,18 +66,25 @@ temp_beta <- temp_beta[, -1]
 
 check_bounds(temp_beta)
 
+temp_beta <- temp_beta[, colnames(temp_beta) %in% nonlinear_vs]
+
+# standardizing format
 new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
 colnames(new_dataset) <- colnames(temp_beta)
 new_dataset[rownames(temp_beta), ] <- temp_beta
 
+# update everything
 metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE32148")
 valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
 running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
-
+idx <- match(rownames(temp_beta), rownames(site_list_by_samples))
+site_list_by_samples[idx, ] <- site_list_by_samples[idx, ] + rowSums(!is.na(temp_beta))
 full_metadata <- rbind(full_metadata, temp_md)
 
 # save processed data
 #write.csv(new_dataset, "../../data/processed/GSE32148_pp.csv") # work-around to preserve rownames, when read using fread, rownames become the first column
+rm(temp_beta, temp_md, new_dataset)
+gc(full = TRUE)
 
 # 2. GSE36054
 # ------------------
@@ -92,6 +104,8 @@ temp_beta <- temp_beta[, -1]
 
 check_bounds(temp_beta)
 
+temp_beta <- temp_beta[, colnames(temp_beta) %in% nonlinear_vs]
+
 new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
 colnames(new_dataset) <- colnames(temp_beta)
 new_dataset[rownames(temp_beta), ] <- temp_beta
@@ -99,12 +113,16 @@ new_dataset[rownames(temp_beta), ] <- temp_beta
 metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE36054")
 valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
 running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+idx <- match(rownames(temp_beta), rownames(site_list_by_samples))
+site_list_by_samples[idx, ] <- site_list_by_samples[idx, ] + rowSums(!is.na(temp_beta))
 
 temp_md$disease_status <- "none"
 colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
 full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "../../data/processed/GSE36054_pp.csv")
+rm(temp_beta, temp_md, new_dataset)
+gc(full = TRUE)
 
 # 3. GSE40279
 # ------------------
@@ -124,6 +142,8 @@ temp_beta <- temp_beta[, -1]
 
 check_bounds(temp_beta)
 
+temp_beta <- temp_beta[, colnames(temp_beta) %in% nonlinear_vs]
+
 new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
 colnames(new_dataset) <- colnames(temp_beta)
 new_dataset[rownames(temp_beta), ] <- temp_beta
@@ -131,12 +151,16 @@ new_dataset[rownames(temp_beta), ] <- temp_beta
 metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE40279")
 valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
 running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+idx <- match(rownames(temp_beta), rownames(site_list_by_samples))
+site_list_by_samples[idx, ] <- site_list_by_samples[idx, ] + rowSums(!is.na(temp_beta))
 
 temp_md$disease_status <- "none"
 colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
 full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "../data/processed/GSE40279_pp.csv")
+rm(temp_beta, temp_md, new_dataset)
+gc(full = TRUE)
 
 # 4. GSE50660
 # ------------------
@@ -156,6 +180,8 @@ temp_beta <- temp_beta[, -1]
 
 check_bounds(temp_beta)
 
+temp_beta <- temp_beta[, colnames(temp_beta) %in% nonlinear_vs]
+
 new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
 colnames(new_dataset) <- colnames(temp_beta)
 new_dataset[rownames(temp_beta), ] <- temp_beta
@@ -163,12 +189,16 @@ new_dataset[rownames(temp_beta), ] <- temp_beta
 metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE50660")
 valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
 running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+idx <- match(rownames(temp_beta), rownames(site_list_by_samples))
+site_list_by_samples[idx, ] <- site_list_by_samples[idx, ] + rowSums(!is.na(temp_beta))
 
 temp_md$disease_status <- "none"
 colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
 full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "../data/processed/GSE50660_pp.csv")
+rm(temp_beta, temp_md, new_dataset)
+gc(full = TRUE)
 
 # 5. GSE50759
 # ------------------
@@ -192,6 +222,8 @@ check_bounds(temp_beta)
 temp_beta <- m_to_b(temp_beta)
 check_bounds(temp_beta)
 
+temp_beta <- temp_beta[, colnames(temp_beta) %in% nonlinear_vs]
+
 new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
 colnames(new_dataset) <- colnames(temp_beta)
 new_dataset[rownames(temp_beta), ] <- temp_beta
@@ -199,6 +231,8 @@ new_dataset[rownames(temp_beta), ] <- temp_beta
 metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE50759")
 valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
 running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+idx <- match(rownames(temp_beta), rownames(site_list_by_samples))
+site_list_by_samples[idx, ] <- site_list_by_samples[idx, ] + rowSums(!is.na(temp_beta))
 
 temp_md$tissue <- "none"
 temp_md$disease_status <- "none"
@@ -206,6 +240,8 @@ colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_
 full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "../data/processed/GSE50759_pp.csv")
+rm(temp_beta, temp_md, new_dataset)
+gc(full = TRUE)
 
 # 6. GSE51057
 # ------------------
@@ -225,6 +261,8 @@ temp_beta <- temp_beta[, -1]
 
 check_bounds(temp_beta)
 
+temp_beta <- temp_beta[, colnames(temp_beta) %in% nonlinear_vs]
+
 new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
 colnames(new_dataset) <- colnames(temp_beta)
 new_dataset[rownames(temp_beta), ] <- temp_beta
@@ -232,6 +270,8 @@ new_dataset[rownames(temp_beta), ] <- temp_beta
 metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE51057")
 valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
 running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+idx <- match(rownames(temp_beta), rownames(site_list_by_samples))
+site_list_by_samples[idx, ] <- site_list_by_samples[idx, ] + rowSums(!is.na(temp_beta))
 
 temp_md$tissue <- "none"
 temp_md$disease_status <- "none"
@@ -239,6 +279,8 @@ colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_
 full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "../data/processed/GSE51057_pp.csv")
+rm(temp_beta, temp_md, new_dataset)
+gc(full = TRUE)
 
 # 7. GSE53740
 # ------------------
@@ -258,6 +300,8 @@ temp_beta <- temp_beta[, -1]
 
 check_bounds(temp_beta)
 
+temp_beta <- temp_beta[, colnames(temp_beta) %in% nonlinear_vs]
+
 new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
 colnames(new_dataset) <- colnames(temp_beta)
 new_dataset[rownames(temp_beta), ] <- temp_beta
@@ -265,6 +309,8 @@ new_dataset[rownames(temp_beta), ] <- temp_beta
 metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE53740")
 valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
 running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+idx <- match(rownames(temp_beta), rownames(site_list_by_samples))
+site_list_by_samples[idx, ] <- site_list_by_samples[idx, ] + rowSums(!is.na(temp_beta))
 
 temp_md$tissue <- "none"
 temp_md <- temp_md[, c(1, 2, 3, 4, 6, 5)]
@@ -272,6 +318,8 @@ colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_
 full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "../data/processed/GSE53740_pp.csv")
+rm(temp_beta, temp_md, new_dataset)
+gc(full = TRUE)
 
 # 8. GSE61256
 # ------------------
@@ -291,6 +339,8 @@ temp_beta <- temp_beta[, -1]
 
 check_bounds(temp_beta)
 
+temp_beta <- temp_beta[, colnames(temp_beta) %in% nonlinear_vs]
+
 new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
 colnames(new_dataset) <- colnames(temp_beta)
 new_dataset[rownames(temp_beta), ] <- temp_beta
@@ -298,6 +348,8 @@ new_dataset[rownames(temp_beta), ] <- temp_beta
 metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE61256")
 valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
 running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+idx <- match(rownames(temp_beta), rownames(site_list_by_samples))
+site_list_by_samples[idx, ] <- site_list_by_samples[idx, ] + rowSums(!is.na(temp_beta))
 
 temp_md$tissue <- "none"
 temp_md <- temp_md[, c(1, 2, 3, 4, 6, 5)]
@@ -305,6 +357,8 @@ colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_
 full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "../data/processed/GSE61256_pp.csv")
+rm(temp_beta, temp_md, new_dataset)
+gc(full = TRUE)
 
 # 9. GSE67705
 # ------------------
@@ -324,6 +378,8 @@ temp_beta <- temp_beta[, -1]
 
 check_bounds(temp_beta)
 
+temp_beta <- temp_beta[, colnames(temp_beta) %in% nonlinear_vs]
+
 new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
 colnames(new_dataset) <- colnames(temp_beta)
 new_dataset[rownames(temp_beta), ] <- temp_beta
@@ -331,12 +387,16 @@ new_dataset[rownames(temp_beta), ] <- temp_beta
 metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE67705")
 valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
 running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+idx <- match(rownames(temp_beta), rownames(site_list_by_samples))
+site_list_by_samples[idx, ] <- site_list_by_samples[idx, ] + rowSums(!is.na(temp_beta))
 
 temp_md$disease_status <- "none"
 colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
 full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "../data/processed/GSE67705_pp.csv")
+rm(temp_beta, temp_md, new_dataset)
+gc(full = TRUE)
 
 # 10. GSE73103
 # ------------------
@@ -356,6 +416,8 @@ temp_beta <- temp_beta[, -1]
 
 check_bounds(temp_beta)
 
+temp_beta <- temp_beta[, colnames(temp_beta) %in% nonlinear_vs]
+
 new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
 colnames(new_dataset) <- colnames(temp_beta)
 new_dataset[rownames(temp_beta), ] <- temp_beta
@@ -363,12 +425,16 @@ new_dataset[rownames(temp_beta), ] <- temp_beta
 metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE73103")
 valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
 running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+idx <- match(rownames(temp_beta), rownames(site_list_by_samples))
+site_list_by_samples[idx, ] <- site_list_by_samples[idx, ] + rowSums(!is.na(temp_beta))
 
 temp_md$disease_status <- "none"
 colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
 full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "../data/processed/GSE73103_pp.csv")
+rm(temp_beta, temp_md, new_dataset)
+gc(full = TRUE)
 
 # 11. GSE80261
 # ------------------
@@ -389,6 +455,8 @@ temp_beta <- temp_beta[, -1]
 
 check_bounds(temp_beta)
 
+temp_beta <- temp_beta[, colnames(temp_beta) %in% nonlinear_vs]
+
 new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
 colnames(new_dataset) <- colnames(temp_beta)
 new_dataset[rownames(temp_beta), ] <- temp_beta
@@ -396,6 +464,8 @@ new_dataset[rownames(temp_beta), ] <- temp_beta
 metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE80261")
 valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
 running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+idx <- match(rownames(temp_beta), rownames(site_list_by_samples))
+site_list_by_samples[idx, ] <- site_list_by_samples[idx, ] + rowSums(!is.na(temp_beta))
 
 temp_md$disease_subgroup <- NULL
 temp_md <- temp_md[, c(1, 2, 3, 4, 6, 5)]
@@ -403,6 +473,8 @@ colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_
 full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "../data/processed/GSE80261_pp.csv")
+rm(temp_beta, temp_md, new_dataset)
+gc(full = TRUE)
 
 # 12. GSE85568
 # ------------------
@@ -423,6 +495,8 @@ temp_beta <- temp_beta[, -1]
 
 check_bounds(temp_beta)
 
+temp_beta <- temp_beta[, colnames(temp_beta) %in% nonlinear_vs]
+
 temp_beta <- limit_bounds(temp_beta)
 check_bounds(temp_beta)
 
@@ -433,6 +507,8 @@ new_dataset[rownames(temp_beta), ] <- temp_beta
 metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE85568")
 valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
 running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+idx <- match(rownames(temp_beta), rownames(site_list_by_samples))
+site_list_by_samples[idx, ] <- site_list_by_samples[idx, ] + rowSums(!is.na(temp_beta))
 
 temp_md$tissue <- "none"
 temp_md <- temp_md[, c(1, 2, 3, 4, 6, 5)]
@@ -440,6 +516,8 @@ colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_
 full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "../data/processed/GSE85568_pp.csv")
+rm(temp_beta, temp_md, new_dataset)
+gc(full = TRUE)
 
 # 13. GSE89253
 # ------------------
@@ -460,6 +538,8 @@ temp_beta <- temp_beta[, -1]
 
 check_bounds(temp_beta)
 
+temp_beta <- temp_beta[, colnames(temp_beta) %in% nonlinear_vs]
+
 temp_beta <- m_to_b(temp_beta)
 check_bounds(temp_beta)
 
@@ -470,6 +550,8 @@ new_dataset[rownames(temp_beta), ] <- temp_beta
 metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE89253")
 valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
 running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+idx <- match(rownames(temp_beta), rownames(site_list_by_samples))
+site_list_by_samples[idx, ] <- site_list_by_samples[idx, ] + rowSums(!is.na(temp_beta))
 
 temp_md$tissue <- "none"
 temp_md$disease_status <- "none"
@@ -477,6 +559,8 @@ colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_
 full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "../data/processed/GSE89253_pp.csv")
+rm(temp_beta, temp_md, new_dataset)
+gc(full = TRUE)
 
 # 14. GSE90124
 # ------------------
@@ -496,6 +580,8 @@ temp_beta <- temp_beta[, -1]
 
 check_bounds(temp_beta)
 
+temp_beta <- temp_beta[, colnames(temp_beta) %in% nonlinear_vs]
+
 new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
 colnames(new_dataset) <- colnames(temp_beta)
 new_dataset[rownames(temp_beta), ] <- temp_beta
@@ -503,12 +589,16 @@ new_dataset[rownames(temp_beta), ] <- temp_beta
 metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE90124")
 valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
 running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+idx <- match(rownames(temp_beta), rownames(site_list_by_samples))
+site_list_by_samples[idx, ] <- site_list_by_samples[idx, ] + rowSums(!is.na(temp_beta))
 
 temp_md$disease_status <- "none"
 colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
 full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "../data/processed/GSE90124_pp.csv")
+rm(temp_beta, temp_md, new_dataset)
+gc(full = TRUE)
 
 # 15. GSE94734
 # ------------------
@@ -528,6 +618,8 @@ temp_beta <- temp_beta[, -1]
 
 check_bounds(temp_beta)
 
+temp_beta <- temp_beta[, colnames(temp_beta) %in% nonlinear_vs]
+
 new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
 colnames(new_dataset) <- colnames(temp_beta)
 new_dataset[rownames(temp_beta), ] <- temp_beta
@@ -535,6 +627,8 @@ new_dataset[rownames(temp_beta), ] <- temp_beta
 metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE94734")
 valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
 running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+idx <- match(rownames(temp_beta), rownames(site_list_by_samples))
+site_list_by_samples[idx, ] <- site_list_by_samples[idx, ] + rowSums(!is.na(temp_beta))
 
 temp_md$tissue <- "none"
 temp_md$disease_status <- "none"
@@ -542,6 +636,8 @@ colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_
 full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "../data/processed/GSE94734_pp.csv")
+rm(temp_beta, temp_md, new_dataset)
+gc(full = TRUE)
 
 # 16. GSE106648
 # ------------------
@@ -561,6 +657,8 @@ temp_beta <- temp_beta[, -1]
 
 check_bounds(temp_beta)
 
+temp_beta <- temp_beta[, colnames(temp_beta) %in% nonlinear_vs]
+
 new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
 colnames(new_dataset) <- colnames(temp_beta)
 new_dataset[rownames(temp_beta), ] <- temp_beta
@@ -568,12 +666,16 @@ new_dataset[rownames(temp_beta), ] <- temp_beta
 metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE106648")
 valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
 running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+idx <- match(rownames(temp_beta), rownames(site_list_by_samples))
+site_list_by_samples[idx, ] <- site_list_by_samples[idx, ] + rowSums(!is.na(temp_beta))
 
 temp_md <- temp_md[, c(1, 2, 3, 4, 6, 5)]
 colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
 full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "../data/processed/GSE106648_pp.csv")
+rm(temp_beta, temp_md, new_dataset)
+gc(full = TRUE)
 
 # 17. GSE114134
 # ------------------
@@ -593,6 +695,8 @@ temp_beta <- temp_beta[, -1]
 
 check_bounds(temp_beta)
 
+#temp_beta <- temp_beta[, colnames(temp_beta) %in% nonlinear_vs]
+
 temp_beta <- as.matrix(temp_beta)
 temp_beta <- liftover(temp_beta)
 
@@ -606,12 +710,19 @@ metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE114134")
 valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
 running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
 
+# without valid_idx here, error is thrown because liftover has some extra sites (not within 450K reference I'm using)
+idx <- match(rownames(temp_beta), rownames(site_list_by_samples))
+valid_idx <- !is.na(idx)
+site_list_by_samples[idx[valid_idx], ] <- site_list_by_samples[idx[valid_idx], ] + rowSums(!is.na(temp_beta))[valid_idx]
+
 temp_md$tissue <- "none"
 temp_md <- temp_md[, c(1, 2, 3, 4, 6, 5)]
 colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
 full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "../data/processed/GSE114134_pp.csv")
+rm(temp_beta, temp_md, new_dataset)
+gc(full = TRUE)
 
 # ~. GSE124076
 # ------------------ 
@@ -635,6 +746,8 @@ temp_beta <- temp_beta[, -1]
 
 check_bounds(temp_beta)
 
+temp_beta <- temp_beta[, colnames(temp_beta) %in% nonlinear_vs]
+
 new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
 colnames(new_dataset) <- colnames(temp_beta)
 new_dataset[rownames(temp_beta), ] <- temp_beta
@@ -642,6 +755,8 @@ new_dataset[rownames(temp_beta), ] <- temp_beta
 metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE124366")
 valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
 running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+idx <- match(rownames(temp_beta), rownames(site_list_by_samples))
+site_list_by_samples[idx, ] <- site_list_by_samples[idx, ] + rowSums(!is.na(temp_beta))
 
 temp_md$tissue <- "none"
 temp_md$disease_status <- "none"
@@ -649,6 +764,8 @@ colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_
 full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "../data/processed/GSE124366_pp.csv")
+rm(temp_beta, temp_md, new_dataset)
+gc(full = TRUE)
 
 # 19. GSE137495
 # ------------------
@@ -668,6 +785,8 @@ temp_beta <- temp_beta[, -1]
 
 check_bounds(temp_beta)
 
+temp_beta <- temp_beta[, colnames(temp_beta) %in% nonlinear_vs]
+
 new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
 colnames(new_dataset) <- colnames(temp_beta)
 new_dataset[rownames(temp_beta), ] <- temp_beta
@@ -675,12 +794,16 @@ new_dataset[rownames(temp_beta), ] <- temp_beta
 metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE137495")
 valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
 running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+idx <- match(rownames(temp_beta), rownames(site_list_by_samples))
+site_list_by_samples[idx, ] <- site_list_by_samples[idx, ] + rowSums(!is.na(temp_beta))
 
 temp_md$disease_status <- "none"
 colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
 full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "../data/processed/GSE137495_pp.csv")
+rm(temp_beta, temp_md, new_dataset)
+gc(full = TRUE)
 
 # 20. GSE138279
 # ------------------
@@ -700,6 +823,8 @@ temp_beta <- temp_beta[, -1]
 
 check_bounds(temp_beta)
 
+temp_beta <- temp_beta[, colnames(temp_beta) %in% nonlinear_vs]
+
 new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(temp_beta)), row.names = standard_cpg_list)
 colnames(new_dataset) <- colnames(temp_beta)
 new_dataset[rownames(temp_beta), ] <- temp_beta
@@ -707,12 +832,16 @@ new_dataset[rownames(temp_beta), ] <- temp_beta
 metadata_tracker <- updateMetadata(metadata_tracker, temp_md, "GSE138279")
 valid_samples <- updateValidSamples(valid_samples, temp_md, 80)
 running_site_list[rownames(temp_beta), ] <- running_site_list[rownames(temp_beta), ] + 1
+idx <- match(rownames(temp_beta), rownames(site_list_by_samples))
+site_list_by_samples[idx, ] <- site_list_by_samples[idx, ] + rowSums(!is.na(temp_beta))
 
 temp_md$disease_status <- "none"
 colnames(temp_md) <- c("sample_id", "age", "gender", "type", "tissue", "disease_status")
 full_metadata <- rbind(full_metadata, temp_md)
 
 #write.csv(new_dataset, "../data/processed/GSE138279_pp.csv")
+rm(temp_beta, temp_md, new_dataset)
+gc(full = TRUE)
 
 # Working with new datasets (not on GEO, not from Hari or Wenshu)
 
@@ -736,6 +865,8 @@ colnames(metadata) <- c("sample_id", "age", "gender", "type", "tissue", "disease
 
 check_bounds(betas)
 
+betas <- betas[, colnames(betas) %in% nonlinear_vs]
+
 new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(betas)), row.names = standard_cpg_list)
 colnames(new_dataset) <- colnames(betas)
 new_dataset[rownames(betas), ] <- betas
@@ -743,10 +874,14 @@ new_dataset[rownames(betas), ] <- betas
 metadata_tracker <- updateMetadata(metadata_tracker, metadata, "GSE62924")
 valid_samples <- updateValidSamples(valid_samples, metadata, 80)
 running_site_list[rownames(betas), ] <- running_site_list[rownames(betas), ] + 1
+idx <- match(rownames(betas), rownames(site_list_by_samples))
+site_list_by_samples[idx, ] <- site_list_by_samples[idx, ] + rowSums(!is.na(betas))
 
 full_metadata <- rbind(full_metadata, metadata)
 
 #write.csv(new_dataset, "../data/processed/GSE62924_pp.csv")
+rm(betas, metadata, new_dataset)
+gc(full = TRUE)
 
 # 22. GSE51180
 # ------------------
@@ -766,6 +901,8 @@ colnames(metadata) <- c("sample_id", "age", "gender", "type", "tissue", "disease
 
 check_bounds(betas)
 
+betas <- betas[, colnames(betas) %in% nonlinear_vs]
+
 new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(betas)), row.names = standard_cpg_list)
 colnames(new_dataset) <- colnames(betas)
 new_dataset[rownames(betas), ] <- betas
@@ -773,10 +910,14 @@ new_dataset[rownames(betas), ] <- betas
 metadata_tracker <- updateMetadata(metadata_tracker, metadata, "GSE51180")
 valid_samples <- updateValidSamples(valid_samples, metadata, 80)
 running_site_list[rownames(betas), ] <- running_site_list[rownames(betas), ] + 1
+idx <- match(rownames(betas), rownames(site_list_by_samples))
+site_list_by_samples[idx, ] <- site_list_by_samples[idx, ] + rowSums(!is.na(betas))
 
 full_metadata <- rbind(full_metadata, metadata)
 
 #write.csv(new_dataset, "../data/processed/GSE51180_pp.csv")
+rm(betas, metadata, new_dataset)
+gc(full = TRUE)
 
 # 23. GSE30870
 # ------------------
@@ -798,6 +939,8 @@ print(paste0("Ages above 80: ", sum(as.numeric(metadata$age)>80, na.rm=TRUE)))
 
 check_bounds(betas)
 
+betas <- betas[, colnames(betas) %in% nonlinear_vs]
+
 new_dataset <- data.frame(matrix(nrow=length(standard_cpg_list), ncol=ncol(betas)), row.names = standard_cpg_list)
 colnames(new_dataset) <- colnames(betas)
 new_dataset[rownames(betas), ] <- betas
@@ -805,10 +948,14 @@ new_dataset[rownames(betas), ] <- betas
 metadata_tracker <- updateMetadata(metadata_tracker, metadata, "GSE30870")
 valid_samples <- updateValidSamples(valid_samples, metadata, 80)
 running_site_list[rownames(betas), ] <- running_site_list[rownames(betas), ] + 1
+idx <- match(rownames(betas), rownames(site_list_by_samples))
+site_list_by_samples[idx, ] <- site_list_by_samples[idx, ] + rowSums(!is.na(betas))
 
 full_metadata <- rbind(full_metadata, metadata)
 
 #write.csv(new_dataset, "../data/processed/GSE30870_pp.csv")
+rm(betas, metadata, new_dataset)
+gc(full = TRUE)
 
 full_metadata$age <- round(as.numeric(full_metadata$age))
 
@@ -817,6 +964,7 @@ saveRDS(temp, "../intermediates/valid_samples.rds")
 saveRDS(full_metadata, "../intermediates/full_metadata.rds")
 saveRDS(metadata_tracker, "../intermediates/metadata_tracker.rds")
 saveRDS(running_site_list, "../intermediates/running_site_list.rds")
+saveRDS(site_list_by_samples, "../intermediates/site_list_by_samples.rds")
 
 male_samples <- full_metadata[full_metadata$gender == "male" | full_metadata$gender == "Male", ]$sample_id
 female_samples <- full_metadata[full_metadata$gender == "female" | full_metadata$gender == "Female", ]$sample_id
@@ -841,6 +989,7 @@ ALL_COLOR <- "black"
 
 metadata_tracker <- readRDS("../intermediates/metadata_tracker.rds")
 running_site_list <- readRDS("../intermediates/running_site_list.rds")
+site_list_by_samples <- readRDS("../intermediates/site_list_by_samples.rds")
 
 md <- readRDS("../intermediates/full_metadata.rds")
 valid_samples <- readRDS("../intermediates/valid_samples.rds")
@@ -873,101 +1022,123 @@ histos <- ggarrange(plotlist = histogram_list, ncol = 1)
 #ggsave("test.png", histos, width=5, height=8) # just for checking
 
 
-# 486427 -> 485577 sites
-running_site_list <- running_site_list[!is.na(running_site_list), , drop=FALSE]
+# 486427 -> 485577 sites (higher number was an artifact from mLiftOver)
+#running_site_list <- running_site_list[!is.na(running_site_list), , drop=FALSE]
+
+site_list_by_samples <- site_list_by_samples[!is.na(rownames(site_list_by_samples)), , drop=FALSE]
 
 # 1868 clock CpGs in total
 clock_cpgs <- unlist(clock_cpgs)
 clock_cpgs <- unique(cpgs)
 
-clock_cpg_list <- running_site_list[clock_cpgs, , drop=FALSE]
+clock_cpg_list <- site_list_by_samples[clock_cpgs, , drop=FALSE]
 
-# NEED TO DO: MODIFY ABOVE PIPELINE SO RUNNING_SITE_LIST COUNTS NUMBER OF SAMPLES CPG HAS VALID ENTRY IN
+thresholds <- seq(200, 4400, by=200)
 
-# load clock sites and filter again
-thresholds <- seq(1, 23, by=1)
-to_plot <- sapply(thresholds, function(t) sum(running_site_list>=t, na.rm=TRUE))
+to_plot <- sapply(thresholds, function(t) sum(site_list_by_samples>=t, na.rm=TRUE))
 to_plot <- data.frame(`CpG Count` = to_plot, Threshold = thresholds)
 
-# Plot 450K CpGs
-bar1 <- ggbarplot(to_plot, x="Threshold", y="CpG.Count", fill="#4682B4", 
-          title="All 450K CpGs Present Across Datasets") +
-  theme_and_axis_nolegend
+bar1 <- ggbarplot(to_plot, x="Threshold", y="CpG.Count", fill="#4682B4",
+                  title="450K Array CpGs Presence Across Datasets") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8))
 
-# clock_cpgs can be found below this chunk
+clock_plot <- sapply(thresholds, function(t) sum(clock_cpg_list>=t, na.rm=TRUE))
+clock_plot <- data.frame(`CpG Count` = clock_plot, Threshold = thresholds)
 
-# Plot Clock CpGs
-to_plot2 <- sapply(thresholds, function(t) sum(list_2>=t, na.rm=TRUE))
-to_plot2 <- data.frame(`CpG Count` = to_plot2, Threshold = thresholds)
-
-bar2 <- ggbarplot(to_plot2, x="Threshold", y="CpG.Count", fill="#4682B4", 
-          title="1868 Clock CpGs Present Across Datasets") +
-  theme_and_axis_nolegend
-
-
-coul <- colorRampPalette(brewer.pal(8, "Set3"))(23)
-
-data_percentage <- apply(metadata_tracker, 1, function(x) {x*100/sum(x, na.rm=T)})
-data_percentage <- data_percentage[, 1:81]
-
-#png(filename="new_figs/percenthistogram.png", width = 10, height = 6, units="in", res=300)
-seg_df <- as.data.frame(data_percentage)
-seg_df$Category <- rownames(seg_df)
-colnames(seg_df) <- gsub("age", "", colnames(seg_df))
-long_seg <- seg_df %>%
-  pivot_longer(-Category, names_to = "Age", values_to = "Percentage") %>%
-  mutate(
-    Age = as.integer(Age)   # if your colnames ran "1","2",… for ages 0–80
-  )
-
-# 2) Make a ggbarplot for the stacked‐percentage plot
-
-seg_bar <- ggbarplot(
-  long_seg,
-  x        = "Age",
-  y        = "Percentage",
-  fill     = "Category",
-  position = position_stack()
-) +
-  scale_fill_manual(values = coul) +
-  scale_x_continuous(breaks = seq(0, 80, by = 20)) +
-  labs(x = "Age", y = "Percentage") +
-  theme_and_axis_nolegend
+bar2 <- ggbarplot(clock_plot, x="Threshold", y="CpG.Count", fill="#4682B4",
+                  title="1868 Clock CpGs Presence Across Datasets") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8))
 
 h1 <- histogram_list[[1]]
 h2 <- histogram_list[[2]]
 h3 <- histogram_list[[3]]
 
 combined <- ggarrange(
-  h1, h2, h3, bar1, bar2, seg_bar,
+  h1, h2, h3, bar1, bar2,
   ncol   = 3, 
   nrow   = 2,
   widths = c(1, 1),     
   heights= c(1, 1, 1),
-  labels = c("A", "", "", "B", "", "C")
+  labels = c("A", "", "", "B", "")
 )
 
 # — 5) Save —
 ggsave(
-  "new_figs/supp_fig2.pdf",
+  "../fig_repository/supp_fig2.pdf",
   combined,
   width  = 17,
   height = 6,
   dpi    = 300
 )
 
+# 4641 valid samples here
+# examining the plots, I will choose a threshold of 90% samples, which is 4176 samples
 
+filtered_sites <- site_list_by_samples[site_list_by_samples$Count >= 4176, , drop=FALSE]
+filtered_sites <- rownames(filtered_sites)
+saveRDS(filtered_sites, "../intermediates/POST_sites.rds")
+
+# BELOW CODE IS FOR BY-DATASET FILTERINg
+# load clock sites and filter again
+# thresholds <- seq(1, 23, by=1)
+# to_plot <- sapply(thresholds, function(t) sum(running_site_list>=t, na.rm=TRUE))
+# to_plot <- data.frame(`CpG Count` = to_plot, Threshold = thresholds)
+# 
+# # Plot 450K CpGs
+# bar1 <- ggbarplot(to_plot, x="Threshold", y="CpG.Count", fill="#4682B4", 
+#           title="All 450K CpGs Present Across Datasets") +
+#   theme_and_axis_nolegend
+# 
+# # clock_cpgs can be found below this chunk
+# 
+# # Plot Clock CpGs
+# to_plot2 <- sapply(thresholds, function(t) sum(list_2>=t, na.rm=TRUE))
+# to_plot2 <- data.frame(`CpG Count` = to_plot2, Threshold = thresholds)
+# 
+# bar2 <- ggbarplot(to_plot2, x="Threshold", y="CpG.Count", fill="#4682B4", 
+#           title="1868 Clock CpGs Present Across Datasets") +
+#   theme_and_axis_nolegend
+
+
+# coul <- colorRampPalette(brewer.pal(8, "Set3"))(23)
+# 
+# data_percentage <- apply(metadata_tracker, 1, function(x) {x*100/sum(x, na.rm=T)})
+# data_percentage <- data_percentage[, 1:81]
+# 
+# #png(filename="new_figs/percenthistogram.png", width = 10, height = 6, units="in", res=300)
+# seg_df <- as.data.frame(data_percentage)
+# seg_df$Category <- rownames(seg_df)
+# colnames(seg_df) <- gsub("age", "", colnames(seg_df))
+# long_seg <- seg_df %>%
+#   pivot_longer(-Category, names_to = "Age", values_to = "Percentage") %>%
+#   mutate(
+#     Age = as.integer(Age)   # if your colnames ran "1","2",… for ages 0–80
+#   )
+# 
+# # 2) Make a ggbarplot for the stacked‐percentage plot
+# 
+# seg_bar <- ggbarplot(
+#   long_seg,
+#   x        = "Age",
+#   y        = "Percentage",
+#   fill     = "Category",
+#   position = position_stack()
+# ) +
+#   scale_fill_manual(values = coul) +
+#   scale_x_continuous(breaks = seq(0, 80, by = 20)) +
+#   labs(x = "Age", y = "Percentage") +
+#   theme_and_axis_nolegend
 ```
 
 Make Splits (necessary because of limited compute)
 
 ```{r}
 #cpg_list <- readRDS("cpg_list.rds") # this is filtered down 393,628
-sites <- readRDS("running_site_list.rds")
-cpg_list <- rownames(sites) # full 486427
-full_metadata <- readRDS("full_metadata.rds")
-valid_samples <- readRDS("valid_samples.rds")
-output_folder <- "splits/"
+sites <- readRDS("../intermediates/site_list_by_samples.rds")
+cpg_list <- rownames(sites) # full 485577
+full_metadata <- readRDS("../intermediates/full_metadata.rds")
+valid_samples <- readRDS("../intermediates/valid_samples.rds")
+output_folder <- "../data/splits/"
 
 makeSplits(cpg_list, full_metadata, valid_samples, 50000, output_folder)
 ```
@@ -975,11 +1146,16 @@ makeSplits(cpg_list, full_metadata, valid_samples, 50000, output_folder)
 Make matrix from splits
 
 ```{r}
+# UPDATE ON 12/4 - PREVIOUSLY: matrices had all sites
+#                - NOW: matrices only have selected sites
+#                - FUTURE: RE-GENERATE MATRICES WHEN CPG_LIST CHANGES
+
 #cpg_list <- readRDS("cpg_list.rds")
-cpg_list <- readRDS("all_high_presence_cpgs.rds")
-full_metadata <- readRDS("full_metadata.rds")
-valid_samples <- readRDS("valid_samples.rds")
-output_folder <- "splits/"
+input_folder <- "../data/splits/"
+cpg_list <- readRDS("../intermediates/POST_sites.rds")
+full_metadata <- readRDS("../intermediates/full_metadata.rds")
+valid_samples <- readRDS("../intermediates/valid_samples.rds")
+output_folder <- "../data/matrix/"
 
 male_samples <- full_metadata[full_metadata$gender=="male" | full_metadata$gender=="Male", ]$sample_id
 male_samples <- intersect(male_samples, valid_samples)
@@ -988,13 +1164,12 @@ female_samples <- intersect(female_samples, valid_samples)
 
 # generateMatrix(input_folder, cpg_list, full_metadata, gender, average, output_folder)
 
-#generateMatrix("splits/", cpg_list, full_metadata, "all", TRUE, "matrix/")
-#generateMatrix("splits/", cpg_list, full_metadata, "all", FALSE, "matrix/")
-#generateMatrix("splits/", cpg_list, full_metadata, "male", TRUE, "matrix/")
-#generateMatrix("splits/", cpg_list, full_metadata, "male", FALSE, "matrix/")
-#generateMatrix("splits/", cpg_list, full_metadata, "female", TRUE, "matrix/")
-#generateMatrix("splits/", cpg_list, full_metadata, "female", FALSE, "matrix/")
-
+generateMatrix(input_folder, cpg_list, full_metadata, "all", TRUE, output_folder)
+generateMatrix(input_folder, cpg_list, full_metadata, "all", FALSE, output_folder)
+generateMatrix(input_folder, cpg_list, full_metadata, "male", TRUE, output_folder)
+generateMatrix(input_folder, cpg_list, full_metadata, "male", FALSE, output_folder)
+generateMatrix(input_folder, cpg_list, full_metadata, "female", TRUE, output_folder)
+generateMatrix(input_folder, cpg_list, full_metadata, "female", FALSE, output_folder)
 ```
 
 Get calculated ages for previous clocks
@@ -1048,11 +1223,11 @@ epiTOC2 <- function(data.m,ages.v=NULL){
 
 # Order: HannumG2013, HorvathS2013, LevineM2018, *Wu not included, LuA2019, McEwenL2019, epiTOC2, ShirebyG2020, DunedinPACE
 
-met <- readRDS("full_metadata.rds")
+met <- readRDS("../intermediates/full_metadata.rds")
 
 clock_names <- list("HannumG2013", "HorvathS2013", "LevineM2018", "LuA2019", "McEwenL2019", "epiTOC2", "ShirebyG2020", "DunedinPACE")
 
-Wu_CpGs <- read_excel("CpGsToInvestigate/aging-11-102399-s003..xlsx")
+Wu_CpGs <- read_excel("../data/ref/CpGsToInvestigate/aging-11-102399-s003..xlsx")
 Wu_CpGs <- Wu_CpGs[-1, ]
 Wu_CpGs <- Wu_CpGs$CpGs
 
@@ -1064,7 +1239,7 @@ extractClockResults <- function(clock_name) {
   all_results <- list()
   for (i in 1:5) {
     
-    temp <- fread(paste0("vert_splits/vert_split_", i, ".csv"))
+    temp <- fread(paste0("../data/vert_splits/vert_split_", i, ".csv"))
     temp <- as.data.frame(temp)
     rownames(temp) <- temp[, 1]
     temp[, 1] <- NULL
@@ -1175,7 +1350,7 @@ supp_fig5 <- ggarrange(plotlist     = plots,
           labels="AUTO")
 
 ggsave(
-  filename = "new_figs/supp_fig5.pdf", 
+  filename = "../fig_repository/supp_fig5.pdf", 
   plot     = supp_fig5, 
   width    = 8, 
   height   = 10, 
@@ -1189,12 +1364,14 @@ Plot CpGs found in many previous clocks
 ```{r}
 # Supp Fig 1B here, cowplot/ggarrange with Supp Fig 1A earlier
 
+# cg19722847 maybe should be removed because not included in new CpG filter?
+
 cpg_list <- c("cg19722847", "cg16867657", "cg09809672", "cg06144905")
-plot_list2 <- plotCpG(cpg_list, 1)
+plot_list2 <- plotCpG(cpg_list, 1, 0, 80)
 
 arrangedPlots2 <- ggarrange(plotlist = plot_list2, ncol=2, nrow=2)
 
-print(arrangedPlots2)
+#print(arrangedPlots2)
 
 # clock_upset_grob from earlier in the code
 
@@ -1204,6 +1381,7 @@ scatter_grid <- plot_grid(
   labels = NULL
 )
 
+# clock_upset_grob comes from PreprocHelper.Rmd (confusing, I know)
 supp_fig1 <- plot_grid(
   clock_upset_grob,
   scatter_grid,
@@ -1213,7 +1391,7 @@ supp_fig1 <- plot_grid(
 )
 
 ggsave(
-  filename = "new_figs/supp_fig1.pdf", 
+  filename = "../fig_repository/supp_fig1.pdf", 
   plot     = supp_fig1, 
   width    = 8, 
   height   = 10, 
@@ -1222,12 +1400,12 @@ ggsave(
 
 
 # print which clocks each of the singly-plotted cpgs are in
-test_name = "cg06144905"
-for (i in 1:length(clock_cpgs)) {
-  if (test_name %in% clock_cpgs[[i]]) {
-    print(names(clock_cpgs)[i])
-  }
-}
+# test_name = "cg06144905"
+# for (i in 1:length(clock_cpgs)) {
+#   if (test_name %in% clock_cpgs[[i]]) {
+#     print(names(clock_cpgs)[i])
+#   }
+# }
 ```
 
 # EVERYTHING BELOW IS RETROSPECTIVE (checking filter and cluster results)
@@ -1235,15 +1413,6 @@ for (i in 1:length(clock_cpgs)) {
 Checking filters, plotting all points for 10 randomly selected CpGs in each window
 
 ```{r}
-theme_and_axis_nolegend <- theme(
-    legend.position = "none",       
-    text = element_text(face = "bold"), 
-    axis.title = element_text(face = "bold"), 
-    axis.text = element_text(face = "bold"),  
-    plot.title = element_text(face = "bold", hjust=0.5),  
-    plot.subtitle = element_text(face = "bold") 
-  )
-
 # Randomly select 10 CpGs for each age window and draw scatterplot (ggarrange by window)
 
 # load filter
