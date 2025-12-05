@@ -6,30 +6,27 @@ output: html_notebook
 Libraries
 
 ```{r}
-library(RColorBrewer)
-library(ggplot2)
-library(ggpubr)
-library(gridGraphics)
-library(tidyr)
-library(dnaMethyAge)
-library(data.table)
-library(parallel)
-library(wateRmelon)
-library(methylclock)
-library(readxl)
-library(DunedinPACE)
-library(ComplexHeatmap)
-```
+suppressPackageStartupMessages(library(data.table))
+suppressPackageStartupMessages(library(readxl))
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(sesame))
 
+suppressPackageStartupMessages(library(RColorBrewer))
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(ggpubr))
+suppressPackageStartupMessages(library(gridGraphics))
+suppressPackageStartupMessages(library(tidyr))
+suppressPackageStartupMessages(library(dnaMethyAge))
+suppressPackageStartupMessages(library(parallel))
+suppressPackageStartupMessages(library(wateRmelon))
+suppressPackageStartupMessages(library(methylclock))
+suppressPackageStartupMessages(library(DunedinPACE))
+```
 
 Read dataset helper functions
 
-```{r, verbose=FALSE}
-library(data.table)
-library(readxl)
-library(dplyr)
-
-xlsx_helper <- function(file_path) {
+```{r}
+readXLSX <- function(file_path) {
   sheet_names <- excel_sheets(file_path)
   beta <- lapply(sheet_names, function(sheet) {
     as.data.table(read_excel(file_path, sheet=sheet))
@@ -38,7 +35,7 @@ xlsx_helper <- function(file_path) {
   return(beta)
 }
 
-csv_helper <- function(file_path) {
+readCSV <- function(file_path) {
   beta <- fread(file_path)
   return(beta)
 }
@@ -72,8 +69,6 @@ m_to_b <- function(dataset) {
 mLiftOver
 
 ```{r, verbose=FALSE}
-library(sesame)
-
 # Run this before
 # sesameDataCache()
 
@@ -311,7 +306,7 @@ generateMatrix <- function(input_folder, cpg_list, full_metadata, gender, averag
 }
 ```
 
-Make vert chunks
+Make vert chunks (used in scenarios where we want it split by sites and not samples)
 
 ```{r}
 # Reformat splits from (50000 sites x all samples) to (all sites x 1000 samples) to ensure that samples have all available sites for EAA calculation

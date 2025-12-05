@@ -101,7 +101,7 @@ extractResults <- function(avg_matrix_path, sd_matrix_path, sd_coeff_cutoff) {
     # Assign appropriate column names
     name_cols <- c(paste0(start_age, "-", end_age, "-corr_res"),
                    paste0(start_age, "-", end_age, "-abs_res"),
-                   paste0(start_age, "-", end_age, "-sd_res0.5"))
+                   paste0(start_age, "-", end_age, "-sd_res"))
     colnames(temp_results) <- name_cols
     rownames(temp_results) <- rownames(sub_B)
     
@@ -120,11 +120,7 @@ extractResults <- function(avg_matrix_path, sd_matrix_path, sd_coeff_cutoff) {
 Filter using results 
 
 ```{r}
-# param results: results dataframe from extractResults function
-# param gender_state: 1 for male, 2 for male, 3 for female
-# param cor_threshold: correlation coefficient cutoff
-# param abs_threshold: absolute change per interval cutoff
-# param sd_threshold: threshold for sd relating to beta
+
 
 # note: if less than 100 sites selected for filter, first do standard deviation filtering, then filter for top 1000 by r, then final top 100 by absolute beta change, just for representation of other age windows
 
@@ -135,23 +131,28 @@ extract_sites <- function(results, filtered_cpg_list, gender, cor_threshold, abs
   results <- results[filtered_cpg_list, ]
   
   
-  significant_counts <- data.frame(age_window = character(), count = integer(), Gender = String(), sites = I(list()), stringsAsFactors=FALSE)
+  significant_counts <- data.frame(age_window = character(), count = integer(), Gender = character(), sites = I(list()), stringsAsFactors=FALSE)
   
   # filter sites down -> first using correlation coefficient and sd cutoff, 
   # then do absolute beta change cutoff / top 100 by beta change
   
   for (i in seq(1, ncol(results), by=3)) {
     window_name <- gsub("-corr_res", "", colnames(results)[i])
+    end_age <- strtoi(substr(window_name, nchar(window_name) - 1, nchar(window_name)))
     first_filter <- apply(results[, c(i, i+1, i+2)], 1, function(row) {
       corr_res <- row[1]
       sd_res <- row[3]
       
-      !is.na(corr_res) && !is.na(sd_res) && abs(corr_res) >= cor_threshold && sd_reses < sd_threshold
+      !is.na(corr_res) && !is.na(sd_res) && abs(corr_res) >= cor_threshold && sd_res < sd_threshold
     })
     
-    first_sites <- rownames(results)[first_filter]
+    first_sites <- results[first_filter, ]
     
-    second_sites <- results[temp[i+1] >= abs_threshold, ]
+    if (end_age <= 40) {
+      second_sites <- first_sites[first_sites[i+1] >= abs_threshold_young, ]
+    } else {
+      second_sites <- first_sites[first_sites[i+1] >= abs_threshold_old, ]
+    }
     
     if (extra_filter) {
       if (dim(second_sites)[0] < 100) {

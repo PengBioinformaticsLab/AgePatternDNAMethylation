@@ -9,13 +9,13 @@ output: html_notebook
 # extractResults(avg_matrix_path, sd_matrix_path, sd_coeff_cutoff)
 # only parameter to be set is sd_coeff_cutoff, which is the coefficient for equation sqrt(Beta * (1 - Beta))
 
-all_results <- extractResults("matrix/allTRUE.csv", "matrix/allFALSE.csv", 0.2)
+all_results <- extractResults("matrix/allTRUE.csv", "matrix/allFALSE.csv", 0.25)
 male_results <- extractResults("matrix/maleTRUE.csv", "matrix/maleFALSE.csv", 0.2)
 female_results <- extractResults("matrix/femaleTRUE.csv", "matrix/femaleFALSE.csv", 0.2)
 
-#saveRDS(all_results, "all_results.rds")
-#saveRDS(male_results, "male_results.rds")
-#saveRDS(female_results, "female_results.rds")
+saveRDS(all_results, "all_results.rds")
+saveRDS(male_results, "male_results.rds")
+saveRDS(female_results, "female_results.rds")
 ```
 
 
