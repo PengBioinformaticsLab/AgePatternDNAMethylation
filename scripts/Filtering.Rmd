@@ -14,11 +14,178 @@ output: html_notebook
 # female_results <- extractResultsParallel("../data/matrix/femaleTRUE.csv", "../data/matrix/femaleFALSE.csv", 0.2)
 
 # saveRDS(all_results, "../intermediates/filter/all_results.rds")
-# saveRDS(male_results, "../intermediates/male_results.rds")
-# saveRDS(female_results, "../intermediates/female_results.rds")
+# saveRDS(male_results, "../intermediates/filter/male_results.rds")
+# saveRDS(female_results, "../intermediates/filter/female_results.rds")
 ```
 
 Examine results to determine filter cutoffs
+
+```{r}
+# supp fig. 3
+# new figure -> 3 rows, 13 columns
+
+# what do we want? input all_results, male_results, female_results, output a figure with 3 rows and 13 columns, 
+# each column showing corr_coeff for the window on the x-axis and abs beta change on the y-axis
+# highlight clock cpgs NOT selected
+
+# load all results
+all_results <- readRDS("../intermediates/filter/all_results.rds")
+male_results <- readRDS("../intermediates/filter/male_results.rds")
+female_results <- readRDS("../intermediates/filter/female_results.rds")
+
+#all_list <- readRDS("all_list.rds")
+#male_list <- readRDS("male_list.rds")
+#female_list <- readRDS("female_list.rds")
+
+#clock_cpgs <- readRDS("clock_cpgs.rds")
+
+#age_windows <- names(all_list)
+#n_winds <- length(age_windows)
+
+age_windows <- {}
+for (i in seq(1, ncol(all_results), by=3)) {
+  age_windows <- c(age_windows, gsub("-corr_res", "", colnames(all_results)[i]))
+}
+n_winds <- length(age_windows)
+
+make_scatter <- function(res_df, window_label, sd_filter=TRUE) {
+  
+  corr_col <- paste0(window_label, "-corr_res")
+  abs_col  <- paste0(window_label, "-abs_res")
+  sd_col <- paste0(window_label, "-sd_res")
+  
+  if (sd_filter) {
+    removed_sd <- res_df[res_df[[sd_col]] < 2, ]
+    df <- data.frame(
+      corr = removed_sd[[corr_col]],
+      abs  = removed_sd[[abs_col]],
+      id   = rownames(removed_sd),
+      stringsAsFactors = FALSE
+    )
+  } else {
+    df <- data.frame(
+      corr = res_df[[corr_col]],
+      abs  = res_df[[abs_col]],
+      id   = rownames(res_df),
+      stringsAsFactors = FALSE
+    )
+  }
+
+  a <- ggscatter(df,
+            x       = "corr",
+            y       = "abs",
+            alpha   = 0.4,
+            add     = "none",
+            shape   = 16
+  ) + 
+    labs(title = window_label,
+         x     = " ",
+         y     = " ",
+         ) +
+  theme(
+    plot.margin = unit(c(0,0,0,0), "cm")
+  ) +
+    xlim(-1, 1) + 
+    ylim(0, 0.8)
+  return(a)
+}
+
+plots_all    <- vector("list", n_winds)
+plots_male   <- vector("list", n_winds)
+plots_female <- vector("list", n_winds)
+
+for (i in seq_along(age_windows)) {
+  w <- age_windows[i]
+  plots_all[[i]]    <- make_scatter(all_results,    w)
+  plots_male[[i]]   <- make_scatter(male_results,   w)
+  plots_female[[i]] <- make_scatter(female_results, w)
+}
+
+arranged_all <- ggarrange(plotlist = plots_all,
+                          #common.legend=TRUE,
+                          legend = "none",
+                          ylab = NULL,
+                          xlab = NULL,
+                          ncol = 1)
+arranged_male <- ggarrange(plotlist = plots_male,
+                          #common.legend=TRUE,
+                          legend = "none",
+                          ylab = NULL,
+                          xlab = NULL,
+                          ncol = 1)
+arranged_female <- ggarrange(plotlist = plots_female,
+                          #common.legend=TRUE,
+                          legend = "none",
+                          ylab = NULL,
+                          xlab = NULL,
+                          ncol = 1)
+
+
+panel_grid <- plot_grid(
+  arranged_all, arranged_male, arranged_female,
+  ncol   = 3,
+  labels = "AUTO",
+  align  = "v",
+  label_y = 0.869
+)
+
+ggsave("../fig_repository/supp_fig3.png", panel_grid, width=9, height=30, dpi=300)
+
+# make_scatter function that highlights selected CpGs as well
+# make_scatter_highlight <- function(res_df, sel_vec, window_label, clock_cpgs) {
+#   corr_col <- paste0(window_label, "-corr_res")
+#   abs_col  <- paste0(window_label, "-abs_res")
+#   df <- data.frame(
+#     corr = res_df[[corr_col]],
+#     abs  = res_df[[abs_col]],
+#     id   = rownames(res_df),
+#     stringsAsFactors = FALSE
+#   )
+# 
+#   
+#   df$highlight <- ifelse(df$id %in% sel_vec, "aaCpGs",
+#                    ifelse(df$id %in% clock_cpgs, "Clock CpGs", "Normal CpGs"))
+#   df$highlight <- factor(df$highlight, levels = c("Normal CpGs","aaCpGs","Clock CpGs"))
+# 
+#   df <- df[order(df$highlight), ]
+#   
+#   a <- ggscatter(df,
+#             x       = "corr",
+#             y       = "abs",
+#             color  = "highlight",
+#             palette = c("aaCpGs"   = "red",
+#                         "Clock CpGs" = "blue",
+#                         "Normal CpGs"      = "grey"),
+#             alpha   = 0.4,
+#             add     = "none",
+#             shape   = 16
+#   ) +
+#     scale_size_manual(values = c(
+#     "aaCpGs"   = 1,
+#     "Clock CpGs" = 1.5,
+#     "Normal CpGs"      = 0.3
+#   ), guide = FALSE) + 
+#     labs(title = window_label,
+#          x     = " ",
+#          y     = " ",
+#          color = "Group") +
+#     theme_and_axis_legend + theme(
+#     plot.margin = unit(c(0,0,0,0), "cm")
+#   ) +
+#     xlim(-1, 1) + 
+#     ylim(0, 0.8)
+#   return(a)
+# }
+
+# not sure if this is necessary 
+
+# legend_grob <- get_legend(
+#   plots_all[[1]] +
+#     theme(legend.position = "top",
+#           legend.title    = element_text(size=10),
+#           legend.text     = element_text(size=8))
+# )
+```
 
 ```{r}
 # Extract aaCpGs for each section based on sum stats generated previously
@@ -55,175 +222,6 @@ female_list <- convert_to_list_format(female_sig_counts)
 
 
 ```
-
-```{r}
-## visualizing filter results with new CpGs
-#
-#all_results <- all_results[filtered_list, ]
-#
-#temp_make_scatter <- function(res_df, window_label) {
-#  corr_col <- paste0(window_label, "-corr_res")
-#  abs_col  <- paste0(window_label, "-abs_res")
-#  df <- data.frame(
-#    corr = res_df[[corr_col]],
-#    abs  = res_df[[abs_col]],
-#    id   = rownames(res_df),
-#    stringsAsFactors = FALSE
-#  )
-#  
-#  plot_df <- data.frame(
-#    corr = all_results[[corr_col]],
-#    abs = all_results[[abs_col]],
-#    id = rownames(all_results),
-#    stringsAsFactors=FALSE
-#  )
-#  
-#  a <- ggscatter(plot_df, x="corr", y="abs")
-#
-#  return(a)
-#}
-#
-#all_list <- readRDS("all_list.rds")
-#age_windows <- names(all_list)
-#
-#plots_all    <- vector("list", 13)
-#
-#for (i in seq_along(age_windows)) {
-#  w <- age_windows[i]
-#  plots_all[[i]]    <- temp_make_scatter(all_results, w)
-#}
-#
-#arranged_all <- ggarrange(plotlist = plots_all,
-#                          #common.legend=TRUE,
-#                          legend = "none",
-#                          ylab = NULL,
-#                          xlab = NULL,
-#                          ncol = 1)
-#
-#ggsave("temp.png", arranged_all, width=3, height=30)
-
-
-```
-
-
-```{r}
-# supp fig. 3
-# new figure -> 3 rows, 13 columns
-
-# what do we want? input all_results, male_results, female_results, output a figure with 3 rows and 13 columns, 
-# each column showing corr_coeff for the window on the x-axis and abs beta change on the y-axis
-# highlight clock cpgs NOT selected
-
-# load all results
-all_results <- readRDS("all_results.rds")
-male_results <- readRDS("male_results.rds")
-female_results <- readRDS("female_results.rds")
-
-all_list <- readRDS("all_list.rds")
-male_list <- readRDS("male_list.rds")
-female_list <- readRDS("female_list.rds")
-
-clock_cpgs <- readRDS("clock_cpgs.rds")
-
-age_windows <- names(all_list)
-n_winds <- length(age_windows)
-
-make_scatter <- function(res_df, sel_vec, window_label, clock_cpgs) {
-  corr_col <- paste0(window_label, "-corr_res")
-  abs_col  <- paste0(window_label, "-abs_res")
-  df <- data.frame(
-    corr = res_df[[corr_col]],
-    abs  = res_df[[abs_col]],
-    id   = rownames(res_df),
-    stringsAsFactors = FALSE
-  )
-
-  
-  df$highlight <- ifelse(df$id %in% sel_vec, "aaCpGs",
-                   ifelse(df$id %in% clock_cpgs, "Clock CpGs", "Normal CpGs"))
-  df$highlight <- factor(df$highlight, levels = c("Normal CpGs","aaCpGs","Clock CpGs"))
-
-  df <- df[order(df$highlight), ]
-  
-  a <- ggscatter(df,
-            x       = "corr",
-            y       = "abs",
-            color  = "highlight",
-            palette = c("aaCpGs"   = "red",
-                        "Clock CpGs" = "blue",
-                        "Normal CpGs"      = "grey"),
-            alpha   = 0.4,
-            add     = "none",
-            shape   = 16
-  ) +
-    scale_size_manual(values = c(
-    "aaCpGs"   = 1,
-    "Clock CpGs" = 1.5,
-    "Normal CpGs"      = 0.3
-  ), guide = FALSE) + 
-    labs(title = window_label,
-         x     = " ",
-         y     = " ",
-         color = "Group") +
-    theme_and_axis_legend + theme(
-    plot.margin = unit(c(0,0,0,0), "cm")
-  ) +
-    xlim(-1, 1) + 
-    ylim(0, 0.8)
-  return(a)
-}
-
-
-plots_all    <- vector("list", n_winds)
-plots_male   <- vector("list", n_winds)
-plots_female <- vector("list", n_winds)
-
-for (i in seq_along(age_windows)) {
-  w <- age_windows[i]
-  plots_all[[i]]    <- make_scatter(all_results,    all_list[[w]],    w, clock_cpgs)
-  plots_male[[i]]   <- make_scatter(male_results,   male_list[[w]],   w, clock_cpgs)
-  plots_female[[i]] <- make_scatter(female_results, female_list[[w]], w, clock_cpgs)
-}
-
-# legend_grob <- get_legend(
-#   plots_all[[1]] +
-#     theme(legend.position = "top",
-#           legend.title    = element_text(size=10),
-#           legend.text     = element_text(size=8))
-# )
-
-arranged_all <- ggarrange(plotlist = plots_all,
-                          #common.legend=TRUE,
-                          legend = "none",
-                          ylab = NULL,
-                          xlab = NULL,
-                          ncol = 1)
-arranged_male <- ggarrange(plotlist = plots_male,
-                          #common.legend=TRUE,
-                          legend = "none",
-                          ylab = NULL,
-                          xlab = NULL,
-                          ncol = 1)
-arranged_female <- ggarrange(plotlist = plots_female,
-                          #common.legend=TRUE,
-                          legend = "none",
-                          ylab = NULL,
-                          xlab = NULL,
-                          ncol = 1)
-
-
-panel_grid <- plot_grid(
-  arranged_all, arranged_male, arranged_female,
-  ncol   = 3,
-  labels = "AUTO",
-  align  = "v",
-  label_y = 0.869
-)
-
-ggsave("new_figs/supp_fig3.png", panel_grid, width=9, height=30, dpi=300)
-
-```
-
 
 Print lists to console and total unique CpGs selected
 
@@ -262,7 +260,7 @@ c <- intersect(clock_sites, female_cpg)
 length(unique(a, unique(b, c)))
 ```
 
-Generate visualized filter
+UpSet plots + 3C scatterplots (fig 3 overall)
 
 ```{r}
 # 3A UpSet plot for aaCpG between each age window
@@ -401,6 +399,8 @@ running_list <- unlist(running_list)
 running_list <- unique(running_list)
 print(length(running_list))
 ```
+
+Circos plots showing genomic distribution (is this in final manuscript?)
 
 ```{r}
 # grab_grob <- function() {

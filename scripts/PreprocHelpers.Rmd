@@ -524,6 +524,8 @@ filtered_sites <- readRDS("../intermediates/POST_sites.rds")
 
 # 1100 clock cpgs only
 filtered_clock_cpgs <- cpgs[cpgs %in% filtered_sites]
+saveRDS(filtered_clock_cpgs, "../intermediates/POST_clock_sites.rds")
+
 
 for (i in 1:length(clock_cpgs)) {
   clock_cpgs[[i]] <- intersect(clock_cpgs[[i]], filtered_clock_cpgs)
