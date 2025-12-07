@@ -6,20 +6,28 @@ output: html_notebook
 Libraries
 
 ```{r}
-library(parallel)
-library(gridBase)
-library(circlize)
-library(ggplotify)
-library(gridGraphics)
-library(ComplexHeatmap)
-library(cowplot)
-library(gridExtra)
-library(ggpubr)
-library(grid)
-library(ggplot2)
-library(data.table)
+suppressPackageStartupMessages(library(parallel))
+suppressPackageStartupMessages(library(gridBase))
+suppressPackageStartupMessages(library(circlize))
+suppressPackageStartupMessages(library(ggplotify))
+suppressPackageStartupMessages(library(gridGraphics))
+suppressPackageStartupMessages(library(ComplexHeatmap))
+suppressPackageStartupMessages(library(cowplot))
+suppressPackageStartupMessages(library(gridExtra))
+suppressPackageStartupMessages(library(ggpubr))
+suppressPackageStartupMessages(library(grid))
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(data.table))
 ```
 
+Aesthetics
+
+```{r}
+theme_set(theme_pubr())
+MALE_COLOR <- "#ADD8E6"
+FEMALE_COLOR <- "#FFB6C1"
+ALL_COLOR <- "black"
+```
 
 Calculate statistics for downstream filtering
 
@@ -30,6 +38,8 @@ Calculate statistics for downstream filtering
 # output: data frame of 3 columns for each age range -> correlation, abs change, num points over sd threshold
 
 extractResults <- function(avg_matrix_path, sd_matrix_path, sd_coeff_cutoff) {
+  library(foreach)
+  library(doParallel)
   # Read matrices
   B <- fread(avg_matrix_path)
   S <- fread(sd_matrix_path)
@@ -45,7 +55,9 @@ extractResults <- function(avg_matrix_path, sd_matrix_path, sd_coeff_cutoff) {
   # Initialize results output
   results_full <- data.frame()
   # Determine the number of cores for parallel processing
-  num_cores <- min(detectCores() - 1, 8)  # Use a maximum of 4 cores or one less than available
+  num_cores <- min(detectCores() - 1, 5)  # Use a maximum of 4 cores or one less than available
+  #cl <- makeCluster(num_cores)
+  #registerDoParallel(cl)
 
   for (start_age in seq(0, 60, by=5)) {
     end_age <- start_age + 20
@@ -117,10 +129,89 @@ extractResults <- function(avg_matrix_path, sd_matrix_path, sd_coeff_cutoff) {
 }
 ```
 
+Parallelized version of extractResults
+```{r}
+# param avg_matrix_path: path to matrix of average betas (from Preproc.Rmd)
+# param sd_matrix_path: path to matrix of standard deviations, used to fulfill one filter criterion (from Preproc.Rmd)
+
+# output: data frame of 3 columns for each age range -> correlation, abs change, num points over sd threshold
+
+extractResultsParallel <- function(avg_matrix_path, sd_matrix_path, sd_coeff_cutoff) {
+  library(foreach)
+  library(doParallel)
+  # Read matrices
+  B <- fread(avg_matrix_path)
+  S <- fread(sd_matrix_path)
+  
+  # Format matrices
+  B <- as.data.frame(B)
+  rownames(B) <- B[, 1]
+  B <- B[, -1]
+  S <- as.data.frame(S)
+  rownames(S) <- S[, 1]
+  S <- S[, -1]
+  
+  # Initialize results output
+  results_full <- data.frame()
+  # Determine the number of cores for parallel processing
+  num_cores <- min(detectCores() - 1, 5)  # Use a maximum of 4 cores or one less than available
+  cl <- makeCluster(num_cores)
+  registerDoParallel(cl)
+
+  results_list <- foreach(start_age = seq(0, 60, by=5), 
+                          .packages = c('data.table'),
+                          .combine = 'list',
+                          .multicombine = TRUE) %dopar% {
+    end_age <- start_age + 20
+    
+    # Extract relevant columns
+    des_cols <- which(as.numeric(gsub("age_", "", colnames(B))) >= start_age & 
+                        as.numeric(gsub("age_", "", colnames(B))) <= end_age)
+    
+    sub_B <- B[, des_cols]
+    sub_S <- S[, des_cols]
+    age_sequence <- as.numeric(gsub("age_", "", colnames(sub_B)))
+    
+    # Calculate correlations
+    corr_results <- apply(sub_B, 1, function(x) cor(x, age_sequence, use = "complete.obs"))
+    
+    # Calculate absolute beta change
+    calc_abs_change <- function(x, age_seq) {
+      fit <- lm(x ~ age_seq)
+      start_pred <- predict(fit, newdata = data.frame(age_seq = start_age))
+      end_pred <- predict(fit, newdata = data.frame(age_seq = end_age))
+      abs(end_pred - start_pred)
+    }
+    abs_change_results <- apply(sub_B, 1, function(x) calc_abs_change(x, age_sequence))
+    
+    # Calculate SD variance
+    adj_avg <- sd_coeff_cutoff * sqrt(sub_B * (1 - sub_B))
+    sub_S_matrix <- as.matrix(sub_S)
+    is_above_threshold <- !is.na(adj_avg) & !is.na(sub_S_matrix) & (sub_S_matrix > adj_avg)
+    sd_results <- rowSums(is_above_threshold, na.rm = TRUE)
+    
+    # Combine results
+    temp_results <- data.frame(corr_results, abs_change_results, sd_results)
+    name_cols <- c(paste0(start_age, "-", end_age, "-corr_res"),
+                   paste0(start_age, "-", end_age, "-abs_res"),
+                   paste0(start_age, "-", end_age, "-sd_res"))
+    colnames(temp_results) <- name_cols
+    rownames(temp_results) <- rownames(sub_B)
+    
+    temp_results
+  }
+  
+  stopCluster(cl)
+  
+  results_full <- do.call(cbind, results_list)
+  
+  return(results_full)
+}
+```
+
 Filter using results 
 
 ```{r}
-
 
 # note: if less than 100 sites selected for filter, first do standard deviation filtering, then filter for top 1000 by r, then final top 100 by absolute beta change, just for representation of other age windows
 
@@ -129,7 +220,7 @@ extract_sites <- function(results, filtered_cpg_list, gender, cor_threshold, abs
   # filter down sites
   
   results <- results[filtered_cpg_list, ]
-  
+  temp <- results
   
   significant_counts <- data.frame(age_window = character(), count = integer(), Gender = character(), sites = I(list()), stringsAsFactors=FALSE)
   
@@ -155,7 +246,7 @@ extract_sites <- function(results, filtered_cpg_list, gender, cor_threshold, abs
     }
     
     if (extra_filter) {
-      if (dim(second_sites)[0] < 100) {
+      if (dim(second_sites)[1] < 100) {
         first_sites <- first_sites[order(-temp[, i+1]), ]
         second_sites <- first_sites[1:100, ]
       }

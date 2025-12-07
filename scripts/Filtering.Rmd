@@ -9,27 +9,30 @@ output: html_notebook
 # extractResults(avg_matrix_path, sd_matrix_path, sd_coeff_cutoff)
 # only parameter to be set is sd_coeff_cutoff, which is the coefficient for equation sqrt(Beta * (1 - Beta))
 
-all_results <- extractResults("matrix/allTRUE.csv", "matrix/allFALSE.csv", 0.25)
-male_results <- extractResults("matrix/maleTRUE.csv", "matrix/maleFALSE.csv", 0.2)
-female_results <- extractResults("matrix/femaleTRUE.csv", "matrix/femaleFALSE.csv", 0.2)
+# all_results <- extractResults("../data/matrix/allTRUE.csv", "../data/matrix/allFALSE.csv", 0.2)
+# male_results <- extractResultsParallel("../data/matrix/maleTRUE.csv", "../data/matrix/maleFALSE.csv", 0.2)
+# female_results <- extractResultsParallel("../data/matrix/femaleTRUE.csv", "../data/matrix/femaleFALSE.csv", 0.2)
 
-saveRDS(all_results, "all_results.rds")
-saveRDS(male_results, "male_results.rds")
-saveRDS(female_results, "female_results.rds")
+# saveRDS(all_results, "../intermediates/filter/all_results.rds")
+# saveRDS(male_results, "../intermediates/male_results.rds")
+# saveRDS(female_results, "../intermediates/female_results.rds")
 ```
 
+Examine results to determine filter cutoffs
 
 ```{r}
 # Extract aaCpGs for each section based on sum stats generated previously
 
-# extract_sites(results, filtered_cpg_list, gender_state, cor_threshold, abs_threshold_young, abs_threshold_old, sd_threshold, extra_filter=TRUE)
 # extra_filter adds the condition that if less than 100 sites are selected, select the 100 sites with the greatest absolute beta change
 
-filtered_list <- readRDS("all_high_presence_cpgs.rds")
+# extract_sites <- function(results, filtered_cpg_list, gender, cor_threshold, abs_threshold_young, abs_threshold_old, sd_threshold, extra_filter=TRUE)
 
-all_sig_counts <- extract_sites(all_results, filtered_list, "Male", 0.5, 0.2, 0.1, 2, TRUE)
-male_sig_counts <- extract_sites(filtered_list, male_results, 2, 0.6, 0.25, 2)
-female_sig_counts <- extract_sites(filtered_list, female_results, 3, 0.6, 0.25, 2)
+
+filtered_list <- readRDS("../intermediates/POST_sites.rds")
+
+all_sig_counts    <- extract_sites(all_results,   filtered_list, "Male", 0.4, 0.1, 0.1, 2, TRUE)
+male_sig_counts   <- extract_sites(male_results,  filtered_list, 2, 0.5, 0.2, 0.1, 2, TRUE)
+female_sig_counts <- extract_sites(filtered_list, filtered_list, 3, 0.5, 0.25, 2, TRUE)
 
 all_list <- convert_to_list_format(all_sig_counts)
 male_list <- convert_to_list_format(male_sig_counts)
