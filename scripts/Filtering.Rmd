@@ -547,6 +547,19 @@ dev.off()
 # manually combine
 ```
 
+Global means and standard deviations
+
+```{r}
+# iterate through vert_splits
+
+# - filter for sites in >95% of samples
+# - ignore age 18 for females (low samples)?
+# - try both box and violin plot
+
+```
+
+
+
 UNUSED BELOW
 
 Create dot plot visualizing filter amounts

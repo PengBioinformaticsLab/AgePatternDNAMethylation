@@ -244,9 +244,15 @@ generateMatrix <- function(input_folder, cpg_list, full_metadata, gender, averag
     rownames(temp) <- temp[, 1]
     temp <- temp[, -1]
     
+    valid_samples <- readRDS("../intermediates/valid_samples.rds")
+    
     if (gender=="male") {
+      male_samples <- full_metadata[full_metadata$gender=="male" | full_metadata$gender=="Male", ]$sample_id
+      male_samples <- intersect(male_samples, valid_samples)
       temp <- temp[, colnames(temp) %in% male_samples]
     } else if (gender=="female") {
+      female_samples <- full_metadata[full_metadata$gender=="female" | full_metadata$gender=="Female", ]$sample_id
+      female_samples <- intersect(female_samples, valid_samples)
       temp <- temp[, colnames(temp) %in% female_samples]
     }
     
