@@ -7,12 +7,14 @@ library(ggplot2)
 
 # paths
 
-allTRUE_path    <- "C:/Users/wensh/OneDrive/manuscript/Main_Directory/test/data/matrix/allTRUE.csv"
-maleTRUE_path   <- "C:/Users/wensh/OneDrive/manuscript/Main_Directory/test/data/matrix/maleTRUE.csv"
-femaleTRUE_path <- "C:/Users/wensh/OneDrive/manuscript/Main_Directory/test/data/matrix/femaleTRUE.csv"
+project_dir <- getwd()
 
-rds_dir <- "C:/Users/wensh/OneDrive/manuscript/Main_Directory/test/relevant_rds"
-out_dir <- "C:/Users/wensh/OneDrive/manuscript/Main_Directory/test"
+allTRUE_path    <- file.path(project_dir, "data", "matrix", "allTRUE.csv")
+maleTRUE_path   <- file.path(project_dir, "data", "matrix", "maleTRUE.csv")
+femaleTRUE_path <- file.path(project_dir, "data", "matrix", "femaleTRUE.csv")
+
+rds_dir <- file.path(project_dir, "relevant_rds")
+out_dir <- project_dir
 
 
 windows_use <- c(
