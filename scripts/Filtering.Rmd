@@ -9,13 +9,13 @@ output: html_notebook
 # extractResults(avg_matrix_path, sd_matrix_path, sd_coeff_cutoff)
 # only parameter to be set is sd_coeff_cutoff, which is the coefficient for equation sqrt(Beta * (1 - Beta))
 
-# all_results <- extractResults("../data/matrix/allTRUE.csv", "../data/matrix/allFALSE.csv", 0.2)
-# male_results <- extractResultsParallel("../data/matrix/maleTRUE.csv", "../data/matrix/maleFALSE.csv", 0.2)
-# female_results <- extractResultsParallel("../data/matrix/femaleTRUE.csv", "../data/matrix/femaleFALSE.csv", 0.2)
+all_results <- extractResults("../data/matrix/allTRUE.csv", "../data/matrix/allFALSE.csv", 0.2)
+male_results <- extractResultsParallel("../data/matrix/maleTRUE.csv", "../data/matrix/maleFALSE.csv", 0.2)
+female_results <- extractResultsParallel("../data/matrix/femaleTRUE.csv", "../data/matrix/femaleFALSE.csv", 0.2)
 
-# saveRDS(all_results, "../intermediates/filter/all_results.rds")
-# saveRDS(male_results, "../intermediates/filter/male_results.rds")
-# saveRDS(female_results, "../intermediates/filter/female_results.rds")
+saveRDS(all_results, "../intermediates/filter/all_results.rds")
+saveRDS(male_results, "../intermediates/filter/male_results.rds")
+saveRDS(female_results, "../intermediates/filter/female_results.rds")
 ```
 
 Examine results to determine filter cutoffs
