@@ -250,9 +250,9 @@ for (i in 1:length(female_list)) {
 female_cpg <- unique(female_cpg)
 print(length(female_cpg))
 
-# saveRDS(all_cpg, "all_select_cpg.rds")
-# saveRDS(male_cpg, "male_select_cpg.rds")
-# saveRDS(female_cpg, "female_select_cpg.rds")
+saveRDS(all_cpg, "all_select_cpg.rds")
+saveRDS(male_cpg, "male_select_cpg.rds")
+saveRDS(female_cpg, "female_select_cpg.rds")
 
 a <- intersect(clock_sites, all_cpg)
 b <- intersect(clock_sites, male_cpg)
