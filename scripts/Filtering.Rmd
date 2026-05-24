@@ -205,9 +205,9 @@ all_list <- convert_to_list_format(all_sig_counts)
 male_list <- convert_to_list_format(male_sig_counts)
 female_list <- convert_to_list_format(female_sig_counts)
 
-# saveRDS(all_list, "all_list.rds")
-# saveRDS(male_list, "male_list.rds")
-# saveRDS(female_list, "female_list.rds")
+saveRDS(all_list, "all_list.rds")
+saveRDS(male_list, "male_list.rds")
+saveRDS(female_list, "female_list.rds")
 
 
 # run to get results without the extra filter
