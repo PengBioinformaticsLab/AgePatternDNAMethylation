@@ -197,9 +197,9 @@ ggsave("../fig_repository/supp_fig3.png", panel_grid, width=9, height=30, dpi=30
 
 filtered_list <- readRDS("../intermediates/POST_sites.rds")
 
-all_sig_counts    <- extract_sites(all_results,   filtered_list, "Male", 0.5, 0.2, 0.2, 2, TRUE)
-male_sig_counts   <- extract_sites(male_results,  filtered_list, 2, 0.5, 0.2, 0.2, 2, TRUE)
-female_sig_counts <- extract_sites(filtered_list, filtered_list, 3, 0.5, 0.2, 2, TRUE)
+all_sig_counts    <- extract_sites(all_results,    filtered_list, "All",    0.5, 0.2, 0.2, 2, TRUE)
+male_sig_counts   <- extract_sites(male_results,   filtered_list, "Male",   0.5, 0.2, 0.2, 2, TRUE)
+female_sig_counts <- extract_sites(female_results, filtered_list, "Female", 0.5, 0.2, 0.2, 2, TRUE)
 
 all_list <- convert_to_list_format(all_sig_counts)
 male_list <- convert_to_list_format(male_sig_counts)
